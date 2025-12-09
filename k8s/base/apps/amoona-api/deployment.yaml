@@ -46,7 +46,7 @@ spec:
                   name: amoona-api-config
                   key: SPRING_PROFILES_ACTIVE
             - name: JAVA_OPTS
-              value: "-XX:+UseZGC -XX:+ZGenerational -XX:MaxRAMPercentage=75.0 -XX:+UseStringDeduplication"
+              value: "-XX:+UseZGC -XX:MaxRAMPercentage=75.0 -XX:+UseStringDeduplication"
             - name: DB_HOST
               valueFrom:
                 secretKeyRef:
