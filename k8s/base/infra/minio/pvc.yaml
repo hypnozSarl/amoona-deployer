@@ -6,6 +6,7 @@ metadata:
     app: minio
     component: storage
 spec:
+  storageClassName: local-path
   accessModes:
     - ReadWriteOnce
   resources:

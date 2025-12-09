@@ -18,6 +18,7 @@ spec:
     - metadata:
         name: postgres-data
       spec:
+        storageClassName: local-path
         resources:
           requests:
             storage: 5Gi
@@ -62,6 +63,7 @@ spec:
     - metadata:
         name: elasticsearch-data
       spec:
+        storageClassName: local-path
         resources:
           requests:
             storage: 5Gi
@@ -71,6 +73,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: minio-data
 spec:
+  storageClassName: local-path
   resources:
     requests:
       storage: 5Gi

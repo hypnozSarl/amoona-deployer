@@ -11,8 +11,9 @@ patches:
   - path: secrets-patch.yaml
   - path: resource-patches.yaml
 
-commonLabels:
-  environment: prod
+labels:
+  - pairs:
+      environment: prod
 
 commonAnnotations:
   managed-by: kustomize

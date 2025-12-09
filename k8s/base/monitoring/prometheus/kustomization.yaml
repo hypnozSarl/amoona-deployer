@@ -7,5 +7,6 @@ resources:
   - deployment.yaml
   - service.yaml
 
-commonLabels:
-  tier: monitoring
+labels:
+  - pairs:
+      tier: monitoring
