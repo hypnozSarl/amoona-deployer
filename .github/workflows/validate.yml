@@ -1,0 +1,134 @@
+name: Validate Kubernetes Manifests
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'k8s/**'
+      - '.github/workflows/validate.yml'
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'k8s/**'
+  workflow_dispatch:
+
+jobs:
+  validate-kustomize:
+    name: Validate Kustomize
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: "5.3.0"
+
+      - name: Validate base manifests
+        run: |
+          echo "Validating base Kustomization..."
+          kustomize build k8s/base > /dev/null
+          echo "Base manifests are valid"
+
+      - name: Validate dev overlay
+        run: |
+          echo "Validating dev overlay..."
+          kustomize build k8s/overlays/dev > /dev/null
+          echo "Dev overlay is valid"
+
+      - name: Validate prod overlay
+        run: |
+          echo "Validating prod overlay..."
+          kustomize build k8s/overlays/prod > /dev/null
+          echo "Prod overlay is valid"
+
+      - name: Generate manifests summary
+        run: |
+          echo "## Manifest Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Dev Environment" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          kustomize build k8s/overlays/dev | grep "^kind:" | sort | uniq -c >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Prod Environment" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          kustomize build k8s/overlays/prod | grep "^kind:" | sort | uniq -c >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+
+  validate-yaml:
+    name: YAML Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Create yamllint config
+        run: |
+          cat > .yamllint.yml << 'EOF'
+          extends: default
+          rules:
+            line-length:
+              max: 200
+              level: warning
+            document-start: disable
+            truthy:
+              check-keys: false
+            comments:
+              min-spaces-from-content: 1
+            indentation:
+              spaces: 2
+              indent-sequences: consistent
+          EOF
+
+      - name: Lint YAML files
+        run: |
+          yamllint -c .yamllint.yml k8s/ || true
+
+  kubeconform:
+    name: Kubernetes Schema Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+
+      - name: Install kubeconform
+        run: |
+          curl -sL https://github.com/yannh/kubeconform/releases/download/v0.6.4/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Validate dev manifests against K8s schema
+        run: |
+          kustomize build k8s/overlays/dev | kubeconform -summary -output json \
+            -kubernetes-version 1.28.0 \
+            -skip CustomResourceDefinition || true
+
+      - name: Validate prod manifests against K8s schema
+        run: |
+          kustomize build k8s/overlays/prod | kubeconform -summary -output json \
+            -kubernetes-version 1.28.0 \
+            -skip CustomResourceDefinition || true
+
+  shellcheck:
+    name: Shell Scripts Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: './scripts'
+          severity: warning
