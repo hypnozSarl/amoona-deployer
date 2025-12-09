@@ -1,0 +1,81 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: amoona-ingress
+  annotations:
+    # Production - SSL with cert-manager
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    # Nginx alternative annotations
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - grafana.amoona.tech
+        - prometheus.amoona.tech
+        - minio.amoona.tech
+        - s3.amoona.tech
+        - elasticsearch.amoona.tech
+      secretName: amoona-tls
+  rules:
+    # Grafana
+    - host: grafana.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
+
+    # Prometheus
+    - host: prometheus.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus
+                port:
+                  number: 9090
+
+    # MinIO Console
+    - host: minio.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  number: 9001
+
+    # MinIO S3 API
+    - host: s3.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  number: 9000
+
+    # Elasticsearch
+    - host: elasticsearch.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: elasticsearch
+                port:
+                  number: 9200
