@@ -78,3 +78,7 @@ data:
         static_configs:
           - targets: ['elasticsearch:9200']
         metrics_path: /_prometheus/metrics
+
+      - job_name: 'node-exporter'
+        static_configs:
+          - targets: ['node-exporter:9100']
