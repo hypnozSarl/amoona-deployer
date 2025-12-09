@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{SERVICE_NAME}}-config
+  labels:
+    app: {{SERVICE_NAME}}
+    tier: backend
+data:
+  SPRING_PROFILES_ACTIVE: "prod"
+  SERVER_PORT: "{{PORT}}"
+  LOGGING_LEVEL_ROOT: "INFO"
+  # Database
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/{{SERVICE_NAME}}"
+  # Redis
+  SPRING_REDIS_HOST: "redis"
+  SPRING_REDIS_PORT: "6379"
+  # Custom config
+  APP_NAME: "{{SERVICE_NAME}}"

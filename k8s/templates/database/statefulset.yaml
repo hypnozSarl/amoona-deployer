@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{SERVICE_NAME}}
+  labels:
+    app: {{SERVICE_NAME}}
+    tier: database
+spec:
+  serviceName: {{SERVICE_NAME}}
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{SERVICE_NAME}}
+  template:
+    metadata:
+      labels:
+        app: {{SERVICE_NAME}}
+        tier: database
+    spec:
+      containers:
+        - name: {{SERVICE_NAME}}
+          image: {{IMAGE}}
+          ports:
+            - containerPort: {{PORT}}
+              name: db
+          envFrom:
+            - secretRef:
+                name: {{SERVICE_NAME}}-secret
+          resources:
+            requests:
+              memory: {{MEMORY_REQUEST}}
+              cpu: {{CPU_REQUEST}}
+            limits:
+              memory: {{MEMORY_LIMIT}}
+              cpu: {{CPU_LIMIT}}
+          volumeMounts:
+            - name: {{SERVICE_NAME}}-data
+              mountPath: /var/lib/postgresql/data
+              subPath: postgres
+          livenessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - postgres
+            initialDelaySeconds: 5
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: {{SERVICE_NAME}}-data
+      spec:
+        storageClassName: local-path
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: {{STORAGE_SIZE}}

@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{SERVICE_NAME}}-config
+  labels:
+    app: {{SERVICE_NAME}}
+    tier: cache
+data:
+  redis.conf: |
+    # Redis configuration
+    bind 0.0.0.0
+    port {{PORT}}
+
+    # Memory management
+    maxmemory {{MAX_MEMORY}}
+    maxmemory-policy allkeys-lru
+
+    # Persistence (disable for cache-only)
+    save ""
+    appendonly no
+
+    # Security
+    protected-mode no
+
+    # Performance
+    tcp-keepalive 300
+    timeout 0
+
+    # Logging
+    loglevel notice

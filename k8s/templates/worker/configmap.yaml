@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{SERVICE_NAME}}-config
+  labels:
+    app: {{SERVICE_NAME}}
+    tier: worker
+data:
+  # Worker configuration
+  WORKER_CONCURRENCY: "{{CONCURRENCY}}"
+  WORKER_QUEUE: "{{QUEUE_NAME}}"
+
+  # Redis connection
+  REDIS_HOST: "redis"
+  REDIS_PORT: "6379"
+
+  # Database connection
+  DATABASE_URL: "postgresql://postgres:5432/{{DB_NAME}}"
+
+  # Logging
+  LOG_LEVEL: "INFO"

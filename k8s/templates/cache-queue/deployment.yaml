@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{SERVICE_NAME}}
+  labels:
+    app: {{SERVICE_NAME}}
+    tier: cache
+spec:
+  replicas: {{REPLICAS}}
+  selector:
+    matchLabels:
+      app: {{SERVICE_NAME}}
+  template:
+    metadata:
+      labels:
+        app: {{SERVICE_NAME}}
+        tier: cache
+    spec:
+      containers:
+        - name: {{SERVICE_NAME}}
+          image: {{IMAGE}}
+          ports:
+            - containerPort: {{PORT}}
+              name: redis
+          command:
+            - redis-server
+            - /etc/redis/redis.conf
+          resources:
+            requests:
+              memory: {{MEMORY_REQUEST}}
+              cpu: {{CPU_REQUEST}}
+            limits:
+              memory: {{MEMORY_LIMIT}}
+              cpu: {{CPU_LIMIT}}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/redis
+            - name: data
+              mountPath: /data
+          livenessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command:
+                - redis-cli
+                - ping
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: config
+          configMap:
+            name: {{SERVICE_NAME}}-config
+        - name: data
+          emptyDir: {}

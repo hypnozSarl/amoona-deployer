@@ -1,0 +1,308 @@
+name: Monitor Cluster Health
+
+on:
+  schedule:
+    # Toutes les 15 minutes
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: 'Enable verbose output'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+jobs:
+  health-check:
+    name: Cluster Health Check
+    runs-on: ubuntu-latest
+    outputs:
+      cluster_status: ${{ steps.cluster.outputs.status }}
+      nodes_status: ${{ steps.nodes.outputs.status }}
+      pods_status: ${{ steps.pods.outputs.status }}
+      pvc_status: ${{ steps.pvc.outputs.status }}
+    steps:
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure Kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Check Cluster Connectivity
+        id: cluster
+        run: |
+          echo "=== Cluster Connectivity Check ==="
+          if kubectl cluster-info &>/dev/null; then
+            echo "status=healthy" >> $GITHUB_OUTPUT
+            echo "✅ Cluster is reachable"
+            kubectl cluster-info
+          else
+            echo "status=unhealthy" >> $GITHUB_OUTPUT
+            echo "❌ Cluster is NOT reachable"
+            exit 1
+          fi
+
+      - name: Check Nodes Health
+        id: nodes
+        run: |
+          echo "=== Nodes Health Check ==="
+
+          UNHEALTHY_NODES=$(kubectl get nodes --no-headers | grep -v " Ready " | wc -l)
+          TOTAL_NODES=$(kubectl get nodes --no-headers | wc -l)
+
+          echo "Total nodes: $TOTAL_NODES"
+          echo "Unhealthy nodes: $UNHEALTHY_NODES"
+
+          kubectl get nodes
+
+          if [ "$UNHEALTHY_NODES" -gt 0 ]; then
+            echo "status=degraded" >> $GITHUB_OUTPUT
+            echo "⚠️ Some nodes are not Ready"
+          else
+            echo "status=healthy" >> $GITHUB_OUTPUT
+            echo "✅ All nodes are Ready"
+          fi
+
+      - name: Check Pods Health
+        id: pods
+        run: |
+          echo "=== Pods Health Check ==="
+
+          PROBLEM_PODS=0
+
+          for ns in amoona-prod amoona-dev; do
+            echo ""
+            echo "--- Namespace: $ns ---"
+
+            # Check for non-running pods
+            NOT_RUNNING=$(kubectl get pods -n $ns --no-headers 2>/dev/null | grep -v "Running\|Completed" | wc -l)
+
+            # Check for pods with high restarts
+            HIGH_RESTARTS=$(kubectl get pods -n $ns -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.containerStatuses[0].restartCount}{"\n"}{end}' 2>/dev/null | awk '$2 > 5 {print $1}' | wc -l)
+
+            # Check for CrashLoopBackOff
+            CRASHLOOP=$(kubectl get pods -n $ns --no-headers 2>/dev/null | grep "CrashLoopBackOff" | wc -l)
+
+            echo "Not Running: $NOT_RUNNING"
+            echo "High Restarts (>5): $HIGH_RESTARTS"
+            echo "CrashLoopBackOff: $CRASHLOOP"
+
+            PROBLEM_PODS=$((PROBLEM_PODS + NOT_RUNNING + CRASHLOOP))
+
+            kubectl get pods -n $ns 2>/dev/null || echo "Namespace $ns not found"
+          done
+
+          if [ "$PROBLEM_PODS" -gt 0 ]; then
+            echo "status=degraded" >> $GITHUB_OUTPUT
+            echo "⚠️ Some pods have issues"
+          else
+            echo "status=healthy" >> $GITHUB_OUTPUT
+            echo "✅ All pods are healthy"
+          fi
+
+      - name: Check PVC Status
+        id: pvc
+        run: |
+          echo "=== PVC Status Check ==="
+
+          PENDING_PVC=0
+
+          for ns in amoona-prod amoona-dev; do
+            echo ""
+            echo "--- Namespace: $ns ---"
+
+            PENDING=$(kubectl get pvc -n $ns --no-headers 2>/dev/null | grep -v "Bound" | wc -l)
+            PENDING_PVC=$((PENDING_PVC + PENDING))
+
+            kubectl get pvc -n $ns 2>/dev/null || echo "No PVCs in $ns"
+          done
+
+          if [ "$PENDING_PVC" -gt 0 ]; then
+            echo "status=degraded" >> $GITHUB_OUTPUT
+            echo "⚠️ Some PVCs are not bound"
+          else
+            echo "status=healthy" >> $GITHUB_OUTPUT
+            echo "✅ All PVCs are bound"
+          fi
+
+      - name: Check Resource Usage
+        if: inputs.verbose == true || github.event_name == 'schedule'
+        run: |
+          echo "=== Resource Usage ==="
+
+          echo ""
+          echo "--- Node Resources ---"
+          kubectl top nodes 2>/dev/null || echo "Metrics server not available"
+
+          echo ""
+          echo "--- Pod Resources (amoona-prod) ---"
+          kubectl top pods -n amoona-prod 2>/dev/null || echo "Metrics not available"
+
+          echo ""
+          echo "--- Pod Resources (amoona-dev) ---"
+          kubectl top pods -n amoona-dev 2>/dev/null || echo "Metrics not available"
+
+      - name: Check Services
+        run: |
+          echo "=== Services Status ==="
+
+          for ns in amoona-prod amoona-dev; do
+            echo ""
+            echo "--- Namespace: $ns ---"
+            kubectl get svc -n $ns 2>/dev/null || echo "No services in $ns"
+          done
+
+      - name: Check Ingress
+        run: |
+          echo "=== Ingress Status ==="
+          kubectl get ingress -A 2>/dev/null || echo "No ingress resources found"
+
+      - name: Check Recent Events
+        if: inputs.verbose == true
+        run: |
+          echo "=== Recent Events (last 1 hour) ==="
+
+          for ns in amoona-prod amoona-dev; do
+            echo ""
+            echo "--- Namespace: $ns ---"
+            kubectl get events -n $ns --sort-by='.lastTimestamp' 2>/dev/null | tail -20 || echo "No events"
+          done
+
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: health-check
+    if: always()
+    steps:
+      - name: Determine Overall Status
+        id: overall
+        run: |
+          CLUSTER="${{ needs.health-check.outputs.cluster_status }}"
+          NODES="${{ needs.health-check.outputs.nodes_status }}"
+          PODS="${{ needs.health-check.outputs.pods_status }}"
+          PVC="${{ needs.health-check.outputs.pvc_status }}"
+
+          if [ "$CLUSTER" = "unhealthy" ]; then
+            echo "status=critical" >> $GITHUB_OUTPUT
+            echo "message=🚨 CRITICAL: Cluster is unreachable!" >> $GITHUB_OUTPUT
+          elif [ "$NODES" = "degraded" ] || [ "$PODS" = "degraded" ] || [ "$PVC" = "degraded" ]; then
+            echo "status=warning" >> $GITHUB_OUTPUT
+            echo "message=⚠️ WARNING: Some components are degraded" >> $GITHUB_OUTPUT
+          else
+            echo "status=healthy" >> $GITHUB_OUTPUT
+            echo "message=✅ All systems operational" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Notify on Critical
+        if: steps.overall.outputs.status == 'critical'
+        run: |
+          echo "🚨 CRITICAL ALERT: Cluster health check failed!"
+
+          # Slack notification (if webhook configured)
+          if [ -n "$SLACK_WEBHOOK_URL" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data '{
+                "text": "🚨 *CRITICAL*: Kubernetes cluster amoona is unreachable!",
+                "attachments": [{
+                  "color": "danger",
+                  "fields": [
+                    {"title": "Cluster", "value": "${{ needs.health-check.outputs.cluster_status }}", "short": true},
+                    {"title": "Action Required", "value": "Check cluster connectivity immediately", "short": false}
+                  ]
+                }]
+              }' \
+              "$SLACK_WEBHOOK_URL" || true
+          fi
+
+      - name: Notify on Warning
+        if: steps.overall.outputs.status == 'warning'
+        run: |
+          echo "⚠️ WARNING: Some components are degraded"
+
+          # Slack notification (if webhook configured)
+          if [ -n "$SLACK_WEBHOOK_URL" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data '{
+                "text": "⚠️ *WARNING*: Kubernetes cluster amoona has degraded components",
+                "attachments": [{
+                  "color": "warning",
+                  "fields": [
+                    {"title": "Cluster", "value": "${{ needs.health-check.outputs.cluster_status }}", "short": true},
+                    {"title": "Nodes", "value": "${{ needs.health-check.outputs.nodes_status }}", "short": true},
+                    {"title": "Pods", "value": "${{ needs.health-check.outputs.pods_status }}", "short": true},
+                    {"title": "PVC", "value": "${{ needs.health-check.outputs.pvc_status }}", "short": true}
+                  ]
+                }]
+              }' \
+              "$SLACK_WEBHOOK_URL" || true
+          fi
+
+      - name: Create Issue on Critical
+        if: steps.overall.outputs.status == 'critical'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = '🚨 CRITICAL: Cluster Health Check Failed';
+            const body = `
+            ## Cluster Health Check Failed
+
+            **Time:** ${new Date().toISOString()}
+            **Status:** Critical
+
+            ### Component Status
+            - Cluster: ${{ needs.health-check.outputs.cluster_status }}
+            - Nodes: ${{ needs.health-check.outputs.nodes_status }}
+            - Pods: ${{ needs.health-check.outputs.pods_status }}
+            - PVC: ${{ needs.health-check.outputs.pvc_status }}
+
+            ### Actions Required
+            1. Check cluster connectivity
+            2. Verify node status
+            3. Check pod logs for errors
+
+            ### Workflow Run
+            [View Details](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})
+            `;
+
+            // Check if similar issue exists
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'critical,monitoring'
+            });
+
+            const existingIssue = issues.data.find(i => i.title.includes('Cluster Health Check Failed'));
+
+            if (!existingIssue) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: title,
+                body: body,
+                labels: ['critical', 'monitoring', 'automated']
+              });
+            }
+
+      - name: Summary
+        run: |
+          echo "## Cluster Health Check Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Time:** $(date)" >> $GITHUB_STEP_SUMMARY
+          echo "**Overall Status:** ${{ steps.overall.outputs.status }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Component Status" >> $GITHUB_STEP_SUMMARY
+          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Cluster | ${{ needs.health-check.outputs.cluster_status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Nodes | ${{ needs.health-check.outputs.nodes_status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Pods | ${{ needs.health-check.outputs.pods_status }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| PVC | ${{ needs.health-check.outputs.pvc_status }} |" >> $GITHUB_STEP_SUMMARY

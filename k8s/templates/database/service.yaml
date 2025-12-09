@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{SERVICE_NAME}}
+  labels:
+    app: {{SERVICE_NAME}}
+    tier: database
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{PORT}}
+      targetPort: {{PORT}}
+      protocol: TCP
+      name: db
+  selector:
+    app: {{SERVICE_NAME}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{SERVICE_NAME}}-headless
+  labels:
+    app: {{SERVICE_NAME}}
+    tier: database
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - port: {{PORT}}
+      targetPort: {{PORT}}
+      name: db
+  selector:
+    app: {{SERVICE_NAME}}

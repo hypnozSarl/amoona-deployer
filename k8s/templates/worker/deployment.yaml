@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{SERVICE_NAME}}
+  labels:
+    app: {{SERVICE_NAME}}
+    tier: worker
+spec:
+  replicas: {{REPLICAS}}
+  selector:
+    matchLabels:
+      app: {{SERVICE_NAME}}
+  template:
+    metadata:
+      labels:
+        app: {{SERVICE_NAME}}
+        tier: worker
+    spec:
+      containers:
+        - name: {{SERVICE_NAME}}
+          image: {{IMAGE}}
+          envFrom:
+            - configMapRef:
+                name: {{SERVICE_NAME}}-config
+            - secretRef:
+                name: {{SERVICE_NAME}}-secret
+                optional: true
+          resources:
+            requests:
+              memory: {{MEMORY_REQUEST}}
+              cpu: {{CPU_REQUEST}}
+            limits:
+              memory: {{MEMORY_LIMIT}}
+              cpu: {{CPU_LIMIT}}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - "pgrep -f worker || exit 1"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+      restartPolicy: Always

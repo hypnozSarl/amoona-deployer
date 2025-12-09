@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{SERVICE_NAME}}
+  labels:
+    app: {{SERVICE_NAME}}
+    tier: microservice
+spec:
+  replicas: {{REPLICAS}}
+  selector:
+    matchLabels:
+      app: {{SERVICE_NAME}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: {{SERVICE_NAME}}
+        tier: microservice
+    spec:
+      containers:
+        - name: {{SERVICE_NAME}}
+          image: {{IMAGE}}
+          ports:
+            - containerPort: {{PORT}}
+              name: http
+          envFrom:
+            - configMapRef:
+                name: {{SERVICE_NAME}}-config
+            - secretRef:
+                name: {{SERVICE_NAME}}-secret
+                optional: true
+          resources:
+            requests:
+              memory: {{MEMORY_REQUEST}}
+              cpu: {{CPU_REQUEST}}
+            limits:
+              memory: {{MEMORY_LIMIT}}
+              cpu: {{CPU_LIMIT}}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{PORT}}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: {{PORT}}
+            initialDelaySeconds: 5
+            periodSeconds: 5
