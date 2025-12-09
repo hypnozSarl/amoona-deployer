@@ -14,6 +14,7 @@ resources:
 patches:
   - path: replicas-patch.yaml
   - path: resources-patch.yaml
+  - path: hpa-patch.yaml
 
 labels:
   - pairs:
