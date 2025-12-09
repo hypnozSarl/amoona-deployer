@@ -80,6 +80,8 @@ spec:
           emptyDir: {}
         - name: var-cache-nginx
           emptyDir: {}
+      imagePullSecrets:
+        - name: ghcr-secret
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
