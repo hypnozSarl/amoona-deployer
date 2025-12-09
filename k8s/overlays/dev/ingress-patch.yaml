@@ -3,10 +3,19 @@ kind: Ingress
 metadata:
   name: amoona-ingress
   annotations:
-    # Dev environment - no SSL required
-    traefik.ingress.kubernetes.io/router.entrypoints: web
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.entrypoints: web,websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
 spec:
   ingressClassName: traefik
+  tls:
+    - hosts:
+        - grafana.dev.amoona.tech
+        - prometheus.dev.amoona.tech
+        - minio.dev.amoona.tech
+        - s3.dev.amoona.tech
+        - elasticsearch.dev.amoona.tech
+      secretName: amoona-dev-tls
   rules:
     # Grafana
     - host: grafana.dev.amoona.tech
