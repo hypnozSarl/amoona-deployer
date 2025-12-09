@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: amoona-front
+  labels:
+    app: amoona-front
+    app.kubernetes.io/name: amoona-front
+    app.kubernetes.io/component: frontend
+    environment: prod
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
+spec:
+  tls:
+    - hosts:
+        - app.amoona.tech
+      secretName: amoona-front-prod-tls
+  rules:
+    - host: app.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: amoona-front
+                port:
+                  number: 80

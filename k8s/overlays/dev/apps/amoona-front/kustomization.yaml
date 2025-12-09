@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: amoona-front-dev
+
+namespace: amoona-dev
+
+resources:
+  - ../../../../base/apps/amoona-front
+  - ingress.yaml
+
+patches:
+  - path: replicas-patch.yaml
+
+commonLabels:
+  environment: dev
+
+images:
+  - name: ghcr.io/hypnozsarl/amoona-front
+    newTag: develop

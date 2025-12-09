@@ -11,9 +11,9 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/mariasoft/amoona-front.git
+    repoURL: https://github.com/hypnozSarl/amoona-deployer.git
     targetRevision: main
-    path: k8s/overlays/prod
+    path: k8s/overlays/prod/apps/amoona-front
   destination:
     server: https://kubernetes.default.svc
     namespace: amoona-prod
