@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: logstash-config
+  labels:
+    app: logstash
+    component: logging
+data:
+  logstash.yml: |
+    http.host: "0.0.0.0"
+    path.config: /usr/share/logstash/pipeline
+    xpack.monitoring.enabled: false
+
+  pipelines.yml: |
+    - pipeline.id: main
+      path.config: "/usr/share/logstash/pipeline/logstash.conf"
+
+  logstash.conf: |
+    input {
+      tcp {
+        port => 5000
+        codec => json_lines
+      }
+    }
+
+    filter {
+      # Parse timestamp
+      date {
+        match => ["@timestamp", "ISO8601"]
+        target => "@timestamp"
+      }
+
+      # Add tenant-specific index suffix if tenantId exists
+      if [tenantId] {
+        mutate {
+          add_field => { "[@metadata][tenant_suffix]" => "-%{tenantId}" }
+        }
+      } else {
+        mutate {
+          add_field => { "[@metadata][tenant_suffix]" => "" }
+        }
+      }
+
+      # Enrich with environment info
+      mutate {
+        add_field => { "cluster" => "amoona-k8s" }
+      }
+    }
+
+    output {
+      elasticsearch {
+        hosts => ["http://elasticsearch:9200"]
+        index => "amoona-logs-%{[environment]}%{[@metadata][tenant_suffix]}-%{+YYYY.MM.dd}"
+        document_type => "_doc"
+      }
+
+      # Debug output (remove in production)
+      # stdout { codec => rubydebug }
+    }

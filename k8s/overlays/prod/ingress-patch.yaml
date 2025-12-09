@@ -18,6 +18,7 @@ spec:
         - minio.amoona.tech
         - s3.amoona.tech
         - elasticsearch.amoona.tech
+        - kibana.amoona.tech
       secretName: amoona-tls
   rules:
     # Grafana
@@ -79,3 +80,15 @@ spec:
                 name: elasticsearch
                 port:
                   number: 9200
+
+    # Kibana
+    - host: kibana.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kibana
+                port:
+                  number: 5601

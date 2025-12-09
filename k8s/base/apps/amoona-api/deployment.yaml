@@ -101,6 +101,17 @@ spec:
                 secretKeyRef:
                   name: amoona-api-secrets
                   key: JWT_SECRET
+            # Logstash
+            - name: LOGGING_LOGSTASH_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: amoona-api-secrets
+                  key: LOGSTASH_HOST
+            - name: LOGGING_LOGSTASH_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: amoona-api-secrets
+                  key: LOGSTASH_PORT
           resources:
             requests:
               memory: "512Mi"

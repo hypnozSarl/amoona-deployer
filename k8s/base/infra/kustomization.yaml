@@ -6,4 +6,6 @@ resources:
   - redis
   - minio
   - elasticsearch
+  - logstash
+  - kibana
   - sonarqube

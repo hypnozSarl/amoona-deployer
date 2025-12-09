@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: logstash
+  labels:
+    app: logstash
+    component: logging
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5000
+      targetPort: 5000
+      name: tcp-input
+      protocol: TCP
+    - port: 9600
+      targetPort: 9600
+      name: http
+      protocol: TCP
+  selector:
+    app: logstash

@@ -15,6 +15,7 @@ spec:
         - minio.dev.amoona.tech
         - s3.dev.amoona.tech
         - elasticsearch.dev.amoona.tech
+        - kibana.dev.amoona.tech
         - sonarqube.dev.amoona.tech
       secretName: amoona-dev-tls
   rules:
@@ -77,6 +78,18 @@ spec:
                 name: elasticsearch
                 port:
                   number: 9200
+
+    # Kibana
+    - host: kibana.dev.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: kibana
+                port:
+                  number: 5601
 
     # SonarQube
     - host: sonarqube.dev.amoona.tech
