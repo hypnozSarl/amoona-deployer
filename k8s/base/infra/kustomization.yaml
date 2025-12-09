@@ -6,3 +6,4 @@ resources:
   - redis
   - minio
   - elasticsearch
+  - sonarqube

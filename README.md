@@ -208,6 +208,22 @@ Les contributions sont bienvenues! Voir [CONTRIBUTING.md](CONTRIBUTING.md)
 MIT License - Voir [LICENSE](LICENSE)
 
 ---
+# Grafana credentials
+kubectl get secret grafana-secret -n amoona-prod -o jsonpath='{.data.GF_SECURITY_ADMIN_USER}' | base64 -d && echo
+kubectl get secret grafana-secret -n amoona-prod -o jsonpath='{.data.GF_SECURITY_ADMIN_PASSWORD}' | base64 -d && echo
+
+# MinIO credentials
+kubectl get secret minio-secret -n amoona-prod -o jsonpath='{.data.MINIO_ROOT_USER}' | base64 -d && echo
+kubectl get secret minio-secret -n amoona-prod -o jsonpath='{.data.MINIO_ROOT_PASSWORD}' | base64 -d && echo
+
+# PostgreSQL credentials
+kubectl get secret postgres-secret -n amoona-prod -o jsonpath='{.data.POSTGRES_USER}' | base64 -d && echo
+kubectl get secret postgres-secret -n amoona-prod -o jsonpath='{.data.POSTGRES_PASSWORD}' | base64 -d && echo
+
+Ou pour voir tous les secrets d'un coup :
+
+# Voir tout le contenu d'un secret (décodé)
+kubectl get secret grafana-secret -n amoona-prod -o go-template='{{range $k,$v := .data}}{{$k}}: {{$v | base64decode}}{{"\n"}}{{end}}'
 
 <div align="center">
 

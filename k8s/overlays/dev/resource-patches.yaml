@@ -79,3 +79,20 @@ spec:
   resources:
     requests:
       storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarqube
+spec:
+  template:
+    spec:
+      containers:
+        - name: sonarqube
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "200m"
+            limits:
+              memory: "1Gi"
+              cpu: "500m"
