@@ -1,6 +1,32 @@
-# Configuration DNS - amoona.tech
+# Configuration DNS pour amoona.tech
 
-Guide de configuration DNS pour le domaine amoona.tech avec le cluster Kubernetes.
+Ce guide vous explique comment configurer les enregistrements DNS pour votre domaine **amoona.tech** afin que tous les sous-domaines pointent vers votre cluster Kubernetes.
+
+---
+
+## Sous-domaines Configurés
+
+### Production (amoona-prod)
+
+| Sous-domaine | Service | Port |
+|--------------|---------|------|
+| grafana.amoona.tech | Dashboard Grafana | 3000 |
+| prometheus.amoona.tech | Métriques Prometheus | 9090 |
+| minio.amoona.tech | Console MinIO | 9001 |
+| s3.amoona.tech | API S3 MinIO | 9000 |
+| elasticsearch.amoona.tech | API Elasticsearch | 9200 |
+
+### Développement (amoona-dev)
+
+| Sous-domaine | Service | Port |
+|--------------|---------|------|
+| grafana.dev.amoona.tech | Dashboard Grafana | 3000 |
+| prometheus.dev.amoona.tech | Métriques Prometheus | 9090 |
+| minio.dev.amoona.tech | Console MinIO | 9001 |
+| s3.dev.amoona.tech | API S3 MinIO | 9000 |
+| elasticsearch.dev.amoona.tech | API Elasticsearch | 9200 |
+
+---
 
 ## Architecture DNS
 
@@ -24,64 +50,90 @@ Guide de configuration DNS pour le domaine amoona.tech avec le cluster Kubernete
                               │    (Traefik Ingress)    │
                               └─────────────────────────┘
                                            │
-                    ┌──────────────────────┼──────────────────────┐
-                    │                      │                      │
-                    ▼                      ▼                      ▼
-            ┌───────────────┐    ┌───────────────┐    ┌───────────────┐
-            │   amoona-prod │    │   amoona-dev  │    │   monitoring  │
-            │   Namespace   │    │   Namespace   │    │   Namespace   │
-            └───────────────┘    └───────────────┘    └───────────────┘
+                         ┌─────────────────┴─────────────────┐
+                         │                                   │
+                         ▼                                   ▼
+                 ┌───────────────┐                   ┌───────────────┐
+                 │  amoona-prod  │                   │  amoona-dev   │
+                 │   Namespace   │                   │   Namespace   │
+                 └───────────────┘                   └───────────────┘
 ```
 
-## Enregistrements DNS Requis
+---
 
-### Production (*.amoona.tech)
+## Option 1: Enregistrements DNS Individuels (Recommandé)
 
-| Type | Nom | Valeur | TTL |
-|------|-----|--------|-----|
-| A | `@` | `195.35.2.238` | 3600 |
-| A | `*` | `195.35.2.238` | 3600 |
-| A | `grafana` | `195.35.2.238` | 3600 |
-| A | `prometheus` | `195.35.2.238` | 3600 |
-| A | `minio` | `195.35.2.238` | 3600 |
-| A | `s3` | `195.35.2.238` | 3600 |
-| A | `elasticsearch` | `195.35.2.238` | 3600 |
+### Chez votre Registrar (OVH, Gandi, Cloudflare, etc.)
 
-### Développement (*.dev.amoona.tech)
+Ajoutez ces enregistrements DNS de type **A** pointant vers `195.35.2.238`:
 
-| Type | Nom | Valeur | TTL |
-|------|-----|--------|-----|
-| A | `*.dev` | `195.35.2.238` | 3600 |
-| A | `grafana.dev` | `195.35.2.238` | 3600 |
-| A | `prometheus.dev` | `195.35.2.238` | 3600 |
-| A | `minio.dev` | `195.35.2.238` | 3600 |
-| A | `s3.dev` | `195.35.2.238` | 3600 |
-| A | `elasticsearch.dev` | `195.35.2.238` | 3600 |
+#### Production
 
-## Configuration par Provider
+```
+Type  | Nom           | Valeur         | TTL
+------|---------------|----------------|-----
+A     | grafana       | 195.35.2.238   | 3600
+A     | prometheus    | 195.35.2.238   | 3600
+A     | minio         | 195.35.2.238   | 3600
+A     | s3            | 195.35.2.238   | 3600
+A     | elasticsearch | 195.35.2.238   | 3600
+```
+
+#### Développement
+
+```
+Type  | Nom                 | Valeur         | TTL
+------|---------------------|----------------|-----
+A     | grafana.dev         | 195.35.2.238   | 3600
+A     | prometheus.dev      | 195.35.2.238   | 3600
+A     | minio.dev           | 195.35.2.238   | 3600
+A     | s3.dev              | 195.35.2.238   | 3600
+A     | elasticsearch.dev   | 195.35.2.238   | 3600
+```
+
+---
+
+## Option 2: Wildcard DNS (Plus Simple)
+
+Si vous voulez que **tous** les sous-domaines pointent vers votre serveur:
+
+```
+Type  | Nom    | Valeur         | TTL
+------|--------|----------------|-----
+A     | @      | 195.35.2.238   | 3600
+A     | *      | 195.35.2.238   | 3600
+A     | *.dev  | 195.35.2.238   | 3600
+```
+
+**Avantages:**
+- Un seul enregistrement à gérer
+- Tous les sous-domaines fonctionnent automatiquement
+- Facilite l'ajout de nouveaux services
+
+---
+
+## Configuration par Registrar
 
 ### OVH
 
-1. Connectez-vous à l'espace client OVH
-2. Allez dans **Web Cloud** → **Domaines** → **amoona.tech**
-3. Cliquez sur l'onglet **Zone DNS**
-4. Ajoutez les enregistrements:
+1. Connexion à l'espace client OVH
+2. **Web Cloud** → **Domaines** → `amoona.tech`
+3. Onglet **Zone DNS**
+4. **Ajouter une entrée**:
 
 ```
-# Production
+# Production (wildcard)
 @              IN A     195.35.2.238
 *              IN A     195.35.2.238
 
-# Développement
+# Développement (wildcard)
 *.dev          IN A     195.35.2.238
 ```
 
 ### Cloudflare
 
-1. Connectez-vous à Cloudflare
-2. Sélectionnez le domaine **amoona.tech**
-3. Allez dans **DNS** → **Records**
-4. Ajoutez:
+1. Dashboard Cloudflare → Sélectionner `amoona.tech`
+2. Section **DNS** → **Add record**
 
 | Type | Name | Content | Proxy |
 |------|------|---------|-------|
@@ -89,68 +141,72 @@ Guide de configuration DNS pour le domaine amoona.tech avec le cluster Kubernete
 | A | `*` | `195.35.2.238` | DNS only |
 | A | `*.dev` | `195.35.2.238` | DNS only |
 
-> **Note**: Désactivez le proxy Cloudflare (orange cloud → grey) pour les wildcards si vous utilisez cert-manager.
+> **Important**: Désactivez le proxy Cloudflare (nuage orange → gris) pour les wildcards si vous utilisez cert-manager.
 
 ### Gandi
 
-1. Connectez-vous à Gandi
-2. Allez dans **Domaines** → **amoona.tech** → **Enregistrements DNS**
-3. Ajoutez les enregistrements A
+1. Connexion à Gandi
+2. **Mes domaines** → `amoona.tech`
+3. **Enregistrements DNS** → **Ajouter un enregistrement**
+4. Type: **A**, Nom: `*`, Valeur: `195.35.2.238`
 
-### AWS Route 53
+### Google Domains / Squarespace
+
+1. Console Google Domains
+2. **Mes domaines** → `amoona.tech`
+3. **DNS** → **Gérer les enregistrements personnalisés**
+4. **Créer un enregistrement**: Type A, Nom `*`, Données `195.35.2.238`
+
+---
+
+## Vérification de la Configuration DNS
+
+### Vérifier la Propagation
 
 ```bash
-# Via AWS CLI
-aws route53 change-resource-record-sets \
-  --hosted-zone-id YOUR_ZONE_ID \
-  --change-batch '{
-    "Changes": [{
-      "Action": "UPSERT",
-      "ResourceRecordSet": {
-        "Name": "*.amoona.tech",
-        "Type": "A",
-        "TTL": 3600,
-        "ResourceRecords": [{"Value": "195.35.2.238"}]
-      }
-    }]
-  }'
+# Vérifier un sous-domaine spécifique
+dig grafana.amoona.tech +short
+nslookup grafana.amoona.tech
+
+# Vérifier tous les sous-domaines
+for subdomain in grafana prometheus minio s3 elasticsearch; do
+  echo -n "$subdomain.amoona.tech: "
+  dig +short $subdomain.amoona.tech
+done
+
+# Vérifier les sous-domaines dev
+for subdomain in grafana prometheus minio s3 elasticsearch; do
+  echo -n "$subdomain.dev.amoona.tech: "
+  dig +short $subdomain.dev.amoona.tech
+done
 ```
 
-## Services et URLs
+### Outils en Ligne
 
-### Production (amoona-prod)
+- **DNS Checker**: https://dnschecker.org/
+- **DNS Propagation**: https://www.whatsmydns.net/
 
-| Service | URL | Port Interne |
-|---------|-----|--------------|
-| Grafana | https://grafana.amoona.tech | 3000 |
-| Prometheus | https://prometheus.amoona.tech | 9090 |
-| MinIO Console | https://minio.amoona.tech | 9001 |
-| MinIO S3 API | https://s3.amoona.tech | 9000 |
-| Elasticsearch | https://elasticsearch.amoona.tech | 9200 |
+### Temps de Propagation
 
-### Développement (amoona-dev)
+**Délai**: 1-48 heures (généralement 1-4 heures)
 
-| Service | URL | Port Interne |
-|---------|-----|--------------|
-| Grafana | https://grafana.dev.amoona.tech | 3000 |
-| Prometheus | https://prometheus.dev.amoona.tech | 9090 |
-| MinIO Console | https://minio.dev.amoona.tech | 9001 |
-| MinIO S3 API | https://s3.dev.amoona.tech | 9000 |
-| Elasticsearch | https://elasticsearch.dev.amoona.tech | 9200 |
+---
 
-## Configuration SSL/TLS
+## Configuration SSL/TLS avec Let's Encrypt
 
-### Avec cert-manager (Recommandé)
+### 1. Installer cert-manager
 
-Les certificats SSL sont automatiquement gérés par cert-manager avec Let's Encrypt.
-
-1. **Installer cert-manager** (si pas déjà fait):
 ```bash
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.13.0/cert-manager.yaml
+
+# Attendre que cert-manager soit prêt
+kubectl wait --for=condition=available --timeout=300s deployment/cert-manager -n cert-manager
 ```
 
-2. **Créer le ClusterIssuer**:
+### 2. Créer un ClusterIssuer
+
 ```yaml
+# cluster-issuer.yaml
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -162,85 +218,136 @@ spec:
     privateKeySecretRef:
       name: letsencrypt-prod-key
     solvers:
-      - http01:
-          ingress:
-            class: traefik
+    - http01:
+        ingress:
+          class: traefik
 ```
 
-3. **Appliquer**:
 ```bash
 kubectl apply -f cluster-issuer.yaml
 ```
 
-Les Ingress en production utilisent automatiquement cert-manager via l'annotation:
-```yaml
-annotations:
-  cert-manager.io/cluster-issuer: letsencrypt-prod
-```
-
-### Sans cert-manager (Manuel)
-
-Si vous préférez gérer les certificats manuellement:
-
-1. Générer un certificat wildcard (ex: via Let's Encrypt certbot)
-2. Créer le secret TLS:
-```bash
-kubectl create secret tls amoona-tls \
-  --cert=fullchain.pem \
-  --key=privkey.pem \
-  -n amoona-prod
-```
-
-## Vérification
-
-### Vérifier la propagation DNS
+### 3. Vérifier les Certificats
 
 ```bash
-# Vérifier les enregistrements A
-dig +short grafana.amoona.tech
-dig +short grafana.dev.amoona.tech
-
-# Vérifier avec nslookup
-nslookup grafana.amoona.tech
-
-# Vérifier la propagation mondiale
-# https://www.whatsmydns.net/#A/grafana.amoona.tech
-```
-
-### Vérifier l'Ingress
-
-```bash
-# Voir tous les Ingress
-kubectl get ingress -A
-
-# Détails de l'Ingress prod
-kubectl describe ingress amoona-ingress -n amoona-prod
-
-# Vérifier les certificats
+# Voir les certificats
 kubectl get certificates -A
+
+# Détails
+kubectl describe certificate -n amoona-prod
+```
+
+---
+
+## Tests Complets
+
+### Script de Test
+
+```bash
+#!/bin/bash
+# test-domains.sh
+
+echo "=== Test des sous-domaines amoona.tech ==="
+echo ""
+
+# Production
+echo "--- Production (amoona-prod) ---"
+for subdomain in grafana prometheus minio s3 elasticsearch; do
+  domain="$subdomain.amoona.tech"
+  echo -n "$domain: "
+  IP=$(dig +short $domain | head -n1)
+  if [ -z "$IP" ]; then
+    echo "❌ DNS non résolu"
+  else
+    echo "✅ $IP"
+  fi
+done
+
+echo ""
+echo "--- Développement (amoona-dev) ---"
+for subdomain in grafana prometheus minio s3 elasticsearch; do
+  domain="$subdomain.dev.amoona.tech"
+  echo -n "$domain: "
+  IP=$(dig +short $domain | head -n1)
+  if [ -z "$IP" ]; then
+    echo "❌ DNS non résolu"
+  else
+    echo "✅ $IP"
+  fi
+done
+
+echo ""
+echo "=== Tests terminés ==="
 ```
 
 ### Tester les URLs
 
 ```bash
-# Test HTTP (dev)
+# Test HTTP (dev - pas de SSL)
 curl -I http://grafana.dev.amoona.tech
 
-# Test HTTPS (prod)
+# Test HTTPS (prod - avec SSL)
 curl -I https://grafana.amoona.tech
 
 # Vérifier le certificat SSL
 openssl s_client -connect grafana.amoona.tech:443 -servername grafana.amoona.tech
 ```
 
+---
+
+## Ajouter un Nouveau Service
+
+### 1. Créer le Service avec le Script
+
+```bash
+./scripts/create-service.sh mon-api
+```
+
+### 2. Ajouter l'Enregistrement DNS
+
+Chez votre registrar, ajoutez:
+- `mon-api.amoona.tech` → `195.35.2.238` (prod)
+- `mon-api.dev.amoona.tech` → `195.35.2.238` (dev)
+
+Ou utilisez le wildcard `*` qui couvre automatiquement tous les sous-domaines.
+
+### 3. Mettre à Jour l'Ingress
+
+Ajoutez dans `k8s/overlays/prod/ingress-patch.yaml`:
+
+```yaml
+# Sous spec.tls[0].hosts:
+- mon-api.amoona.tech
+
+# Sous spec.rules:
+- host: mon-api.amoona.tech
+  http:
+    paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mon-api
+            port:
+              number: 8080
+```
+
+### 4. Déployer
+
+```bash
+git add k8s/
+git commit -m "feat: add mon-api ingress"
+git push origin main
+```
+
+---
+
 ## Dépannage
 
 ### DNS ne résout pas
 
-1. Vérifier que les enregistrements sont bien créés chez le provider
-2. Attendre la propagation (jusqu'à 48h, généralement quelques minutes)
-3. Vider le cache DNS local:
 ```bash
+# Vider le cache DNS local
 # macOS
 sudo dscacheutil -flushcache; sudo killall -HUP mDNSResponder
 
@@ -249,64 +356,83 @@ sudo systemd-resolve --flush-caches
 
 # Windows
 ipconfig /flushdns
+
+# Tester avec DNS public
+dig @8.8.8.8 grafana.amoona.tech
+dig @1.1.1.1 grafana.amoona.tech
 ```
 
 ### Certificat SSL invalide
 
-1. Vérifier que cert-manager fonctionne:
 ```bash
+# Vérifier cert-manager
 kubectl get pods -n cert-manager
 kubectl logs -n cert-manager -l app=cert-manager
-```
 
-2. Vérifier les challenges ACME:
-```bash
+# Vérifier les challenges ACME
 kubectl get challenges -A
 kubectl describe challenge <name> -n <namespace>
 ```
 
-3. Vérifier que le port 80 est accessible (pour HTTP-01 challenge)
-
 ### 502 Bad Gateway
 
-1. Vérifier que le service existe:
 ```bash
+# Vérifier les services
 kubectl get svc -n amoona-prod
-```
 
-2. Vérifier que les pods sont running:
-```bash
+# Vérifier les pods
 kubectl get pods -n amoona-prod
-```
 
-3. Vérifier les logs de Traefik:
-```bash
+# Logs Traefik
 kubectl logs -n kube-system -l app.kubernetes.io/name=traefik
 ```
 
-## Ajouter un Nouveau Sous-domaine
+### Vérifier l'Ingress
 
-1. **Ajouter l'enregistrement DNS** chez votre provider
+```bash
+# Voir tous les Ingress
+kubectl get ingress -A
 
-2. **Mettre à jour l'Ingress** dans `k8s/overlays/prod/ingress-patch.yaml`:
-```yaml
-# Ajouter sous spec.tls[0].hosts:
-- mon-service.amoona.tech
-
-# Ajouter sous spec.rules:
-- host: mon-service.amoona.tech
-  http:
-    paths:
-      - path: /
-        pathType: Prefix
-        backend:
-          service:
-            name: mon-service
-            port:
-              number: 8080
+# Détails
+kubectl describe ingress amoona-ingress -n amoona-prod
 ```
 
-3. **Commit et push** - Le déploiement est automatique
+---
+
+## Récapitulatif
+
+### URLs de Production
+
+| Service | URL |
+|---------|-----|
+| Grafana | https://grafana.amoona.tech |
+| Prometheus | https://prometheus.amoona.tech |
+| MinIO Console | https://minio.amoona.tech |
+| MinIO S3 API | https://s3.amoona.tech |
+| Elasticsearch | https://elasticsearch.amoona.tech |
+
+### URLs de Développement
+
+| Service | URL |
+|---------|-----|
+| Grafana | http://grafana.dev.amoona.tech |
+| Prometheus | http://prometheus.dev.amoona.tech |
+| MinIO Console | http://minio.dev.amoona.tech |
+| MinIO S3 API | http://s3.dev.amoona.tech |
+| Elasticsearch | http://elasticsearch.dev.amoona.tech |
+
+### Checklist
+
+- [ ] Enregistrements DNS configurés (wildcard ou individuels)
+- [ ] Propagation DNS vérifiée (`dig`, `nslookup`)
+- [ ] Port 6443 ouvert (API Kubernetes)
+- [ ] Port 80/443 ouvert (HTTP/HTTPS)
+- [ ] cert-manager installé
+- [ ] ClusterIssuer créé
+- [ ] Certificats SSL générés
+- [ ] Tests HTTPS réussis
+
+---
 
 ## Ressources
 
