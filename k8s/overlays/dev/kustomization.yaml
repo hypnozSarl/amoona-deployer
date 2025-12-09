@@ -19,3 +19,4 @@ labels:
 commonAnnotations:
   managed-by: kustomize
   environment: development
+  last-deployed: "2025-12-09T14:15:00Z"
