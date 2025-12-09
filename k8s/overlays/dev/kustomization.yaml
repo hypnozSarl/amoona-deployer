@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: amoona-dev
+
+resources:
+  - namespace.yaml
+  - ../../base
+
+patches:
+  - path: secrets-patch.yaml
+  - path: resource-patches.yaml
+
+commonLabels:
+  environment: dev
+
+commonAnnotations:
+  managed-by: kustomize
+  environment: development

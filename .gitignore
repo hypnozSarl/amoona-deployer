@@ -1,0 +1,35 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Generated manifests
+complete-manifest.yaml
+*.generated.yaml
+
+# Secrets (never commit real secrets!)
+**/secrets/*.yaml
+!**/secrets/*.example.yaml
+.env
+.env.local
+.env.*.local
+
+# Temporary files
+*.tmp
+*.bak
+*.log
+
+# Kubernetes
+kubeconfig
+*.kubeconfig
+
+# Test outputs
+coverage/
+test-results/
