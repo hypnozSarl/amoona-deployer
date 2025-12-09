@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: amoona-api-dev
+
+namespace: amoona-dev
+
+resources:
+  - ../../../../base/apps/amoona-api
+  - ingress.yaml
+  - secrets.yaml
+
+patches:
+  - path: replicas-patch.yaml
+  - path: resources-patch.yaml
+
+labels:
+  - pairs:
+      environment: dev
+    includeSelectors: false
+
+images:
+  - name: ghcr.io/hypnozsarl/amoona-api
+    newTag: develop
+
+configMapGenerator:
+  - name: amoona-api-config
+    behavior: merge
+    literals:
+      - SPRING_PROFILES_ACTIVE=dev
