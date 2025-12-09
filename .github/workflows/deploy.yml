@@ -1,0 +1,359 @@
+name: Deploy to Kubernetes
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'k8s/**'
+      - '.github/workflows/deploy.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'k8s/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+      dry_run:
+        description: 'Dry run mode (no actual deployment)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  KUSTOMIZE_VERSION: '5.3.0'
+
+jobs:
+  detect-changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      services: ${{ steps.detect.outputs.services }}
+      has_changes: ${{ steps.detect.outputs.has_changes }}
+      environment: ${{ steps.set-env.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set Environment
+        id: set-env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Detect Changed Services
+        id: detect
+        run: |
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            BASE_SHA=${{ github.event.pull_request.base.sha }}
+          else
+            BASE_SHA=${{ github.event.before }}
+          fi
+
+          # Handle first push or manual trigger
+          if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" == "0000000000000000000000000000000000000000" ]; then
+            BASE_SHA=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+          fi
+
+          SERVICES=()
+
+          # Check for changes in each service directory
+          for dir in k8s/base/infra/* k8s/base/monitoring/* k8s/base/apps/*; do
+            if [ -d "$dir" ]; then
+              SERVICE=$(basename "$dir")
+              if [ -n "$BASE_SHA" ]; then
+                if git diff --name-only "$BASE_SHA" HEAD | grep -q "k8s/.*$SERVICE"; then
+                  SERVICES+=("$SERVICE")
+                fi
+              else
+                # If no base SHA, include all services
+                SERVICES+=("$SERVICE")
+              fi
+            fi
+          done
+
+          # Check for overlay changes
+          ENV="${{ steps.set-env.outputs.environment }}"
+          if [ -n "$BASE_SHA" ]; then
+            if git diff --name-only "$BASE_SHA" HEAD | grep -q "k8s/overlays/$ENV"; then
+              # Include all services if overlay changed
+              for dir in k8s/base/infra/* k8s/base/monitoring/*; do
+                if [ -d "$dir" ]; then
+                  SERVICE=$(basename "$dir")
+                  if [[ ! " ${SERVICES[*]} " =~ " $SERVICE " ]]; then
+                    SERVICES+=("$SERVICE")
+                  fi
+                fi
+              done
+            fi
+          fi
+
+          # Convert to JSON array
+          if [ ${#SERVICES[@]} -eq 0 ]; then
+            echo "services=[]" >> $GITHUB_OUTPUT
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          else
+            SERVICES_JSON=$(printf '%s\n' "${SERVICES[@]}" | jq -R . | jq -s -c .)
+            echo "services=$SERVICES_JSON" >> $GITHUB_OUTPUT
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Detected services: ${SERVICES[*]}"
+
+  validate:
+    name: Validate Manifests
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has_changes == 'true'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: ${{ env.KUSTOMIZE_VERSION }}
+
+      - name: Validate Kustomize Build
+        run: |
+          ENV="${{ needs.detect-changes.outputs.environment }}"
+          echo "Validating kustomize build for $ENV environment..."
+          kustomize build k8s/overlays/$ENV > /tmp/manifests.yaml
+          echo "Kustomize build successful!"
+          echo "Generated $(grep -c '^kind:' /tmp/manifests.yaml) resources"
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.4/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Validate Kubernetes Manifests
+        run: |
+          ENV="${{ needs.detect-changes.outputs.environment }}"
+          kustomize build k8s/overlays/$ENV | kubeconform -strict -summary \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+
+      - name: Upload Manifests Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: manifests-${{ needs.detect-changes.outputs.environment }}
+          path: /tmp/manifests.yaml
+          retention-days: 7
+
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    needs: [detect-changes, validate]
+    if: |
+      needs.detect-changes.outputs.has_changes == 'true' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    environment:
+      name: ${{ needs.detect-changes.outputs.environment }}
+      url: ${{ needs.detect-changes.outputs.environment == 'prod' && 'https://grafana.amoona.tech' || 'https://grafana.dev.amoona.tech' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: ${{ env.KUSTOMIZE_VERSION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure Kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Verify Cluster Connection
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Build Manifests
+        run: |
+          ENV="${{ needs.detect-changes.outputs.environment }}"
+          kustomize build k8s/overlays/$ENV > /tmp/manifests.yaml
+
+      - name: Deploy (Dry Run)
+        if: inputs.dry_run == true
+        run: |
+          echo "=== DRY RUN MODE ==="
+          kubectl apply -f /tmp/manifests.yaml --dry-run=server
+          echo "=== DRY RUN COMPLETE ==="
+
+      - name: Deploy to Kubernetes
+        if: inputs.dry_run != true
+        id: deploy
+        run: |
+          ENV="${{ needs.detect-changes.outputs.environment }}"
+          NAMESPACE="amoona-$ENV"
+
+          echo "Deploying to $NAMESPACE namespace..."
+          kubectl apply -f /tmp/manifests.yaml
+
+          echo "namespace=$NAMESPACE" >> $GITHUB_OUTPUT
+
+      - name: Wait for Rollout
+        if: inputs.dry_run != true
+        run: |
+          NAMESPACE="${{ steps.deploy.outputs.namespace }}"
+          SERVICES='${{ needs.detect-changes.outputs.services }}'
+
+          echo "Waiting for deployments and statefulsets to be ready..."
+
+          # Wait for StatefulSets
+          for sts in $(kubectl get statefulsets -n $NAMESPACE -o jsonpath='{.items[*].metadata.name}'); do
+            echo "Waiting for StatefulSet $sts..."
+            kubectl rollout status statefulset/$sts -n $NAMESPACE --timeout=300s || true
+          done
+
+          # Wait for Deployments
+          for deploy in $(kubectl get deployments -n $NAMESPACE -o jsonpath='{.items[*].metadata.name}'); do
+            echo "Waiting for Deployment $deploy..."
+            kubectl rollout status deployment/$deploy -n $NAMESPACE --timeout=300s || true
+          done
+
+      - name: Health Check
+        if: inputs.dry_run != true
+        id: health
+        run: |
+          NAMESPACE="${{ steps.deploy.outputs.namespace }}"
+          FAILED=0
+
+          echo "=== Pod Status ==="
+          kubectl get pods -n $NAMESPACE
+
+          echo ""
+          echo "=== Checking Pod Health ==="
+
+          # Check for pods not in Running/Completed state
+          NOT_READY=$(kubectl get pods -n $NAMESPACE --no-headers | grep -v "Running\|Completed" | wc -l)
+          if [ "$NOT_READY" -gt 0 ]; then
+            echo "WARNING: $NOT_READY pods are not in Running/Completed state"
+            kubectl get pods -n $NAMESPACE | grep -v "Running\|Completed"
+            FAILED=1
+          fi
+
+          # Check for pods with restarts > 3
+          HIGH_RESTARTS=$(kubectl get pods -n $NAMESPACE -o jsonpath='{range .items[*]}{.metadata.name}{" "}{.status.containerStatuses[0].restartCount}{"\n"}{end}' | awk '$2 > 3 {print $1}')
+          if [ -n "$HIGH_RESTARTS" ]; then
+            echo "WARNING: Pods with high restart count:"
+            echo "$HIGH_RESTARTS"
+          fi
+
+          echo ""
+          echo "=== Service Status ==="
+          kubectl get services -n $NAMESPACE
+
+          echo ""
+          echo "=== PVC Status ==="
+          kubectl get pvc -n $NAMESPACE
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo "health_status=unhealthy" >> $GITHUB_OUTPUT
+          else
+            echo "health_status=healthy" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Auto Rollback on Failure
+        if: inputs.dry_run != true && steps.health.outputs.health_status == 'unhealthy'
+        run: |
+          NAMESPACE="${{ steps.deploy.outputs.namespace }}"
+          echo "=== HEALTH CHECK FAILED - Initiating Rollback ==="
+
+          # Rollback deployments
+          for deploy in $(kubectl get deployments -n $NAMESPACE -o jsonpath='{.items[*].metadata.name}'); do
+            echo "Rolling back Deployment $deploy..."
+            kubectl rollout undo deployment/$deploy -n $NAMESPACE || true
+          done
+
+          # Rollback statefulsets
+          for sts in $(kubectl get statefulsets -n $NAMESPACE -o jsonpath='{.items[*].metadata.name}'); do
+            echo "Rolling back StatefulSet $sts..."
+            kubectl rollout undo statefulset/$sts -n $NAMESPACE || true
+          done
+
+          echo "Rollback initiated. Please check the cluster status."
+          exit 1
+
+      - name: Deployment Summary
+        if: always() && inputs.dry_run != true
+        run: |
+          NAMESPACE="${{ steps.deploy.outputs.namespace }}"
+          ENV="${{ needs.detect-changes.outputs.environment }}"
+
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** $ENV" >> $GITHUB_STEP_SUMMARY
+          echo "**Namespace:** $NAMESPACE" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** ${{ steps.health.outputs.health_status || 'unknown' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Services Deployed" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo '${{ needs.detect-changes.outputs.services }}' >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+          if [ "$ENV" == "prod" ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Access URLs" >> $GITHUB_STEP_SUMMARY
+            echo "- [Grafana](https://grafana.amoona.tech)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Prometheus](https://prometheus.amoona.tech)" >> $GITHUB_STEP_SUMMARY
+            echo "- [MinIO Console](https://minio.amoona.tech)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Elasticsearch](https://elasticsearch.amoona.tech)" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "### Access URLs" >> $GITHUB_STEP_SUMMARY
+            echo "- [Grafana](https://grafana.dev.amoona.tech)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Prometheus](https://prometheus.dev.amoona.tech)" >> $GITHUB_STEP_SUMMARY
+            echo "- [MinIO Console](https://minio.dev.amoona.tech)" >> $GITHUB_STEP_SUMMARY
+            echo "- [Elasticsearch](https://elasticsearch.dev.amoona.tech)" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [detect-changes, deploy]
+    if: always() && needs.deploy.result != 'skipped'
+    steps:
+      - name: Notify Success
+        if: needs.deploy.result == 'success'
+        run: |
+          echo "✅ Deployment to ${{ needs.detect-changes.outputs.environment }} completed successfully!"
+          # Add Slack/Discord notification here if needed
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"✅ Deployment to ${{ needs.detect-changes.outputs.environment }} completed successfully!"}' \
+          #   ${{ secrets.SLACK_WEBHOOK_URL }}
+
+      - name: Notify Failure
+        if: needs.deploy.result == 'failure'
+        run: |
+          echo "❌ Deployment to ${{ needs.detect-changes.outputs.environment }} failed!"
+          # Add Slack/Discord notification here if needed
+          # curl -X POST -H 'Content-type: application/json' \
+          #   --data '{"text":"❌ Deployment to ${{ needs.detect-changes.outputs.environment }} failed!"}' \
+          #   ${{ secrets.SLACK_WEBHOOK_URL }}

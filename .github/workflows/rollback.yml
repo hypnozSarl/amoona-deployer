@@ -1,0 +1,384 @@
+name: Rollback Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to rollback'
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+      rollback_type:
+        description: 'Rollback type'
+        required: true
+        type: choice
+        options:
+          - specific_service
+          - all_services
+          - git_revision
+      service_name:
+        description: 'Service name (for specific_service rollback)'
+        required: false
+        type: string
+      git_revision:
+        description: 'Git commit SHA or tag (for git_revision rollback)'
+        required: false
+        type: string
+      revision_count:
+        description: 'Number of revisions to rollback (default: 1)'
+        required: false
+        default: '1'
+        type: string
+
+env:
+  KUSTOMIZE_VERSION: '5.3.0'
+
+jobs:
+  validate-inputs:
+    name: Validate Inputs
+    runs-on: ubuntu-latest
+    outputs:
+      namespace: ${{ steps.validate.outputs.namespace }}
+      rollback_type: ${{ steps.validate.outputs.rollback_type }}
+      service_name: ${{ steps.validate.outputs.service_name }}
+      git_revision: ${{ steps.validate.outputs.git_revision }}
+    steps:
+      - name: Validate Inputs
+        id: validate
+        run: |
+          NAMESPACE="amoona-${{ inputs.environment }}"
+          echo "namespace=$NAMESPACE" >> $GITHUB_OUTPUT
+          echo "rollback_type=${{ inputs.rollback_type }}" >> $GITHUB_OUTPUT
+
+          if [ "${{ inputs.rollback_type }}" == "specific_service" ]; then
+            if [ -z "${{ inputs.service_name }}" ]; then
+              echo "ERROR: Service name is required for specific_service rollback"
+              exit 1
+            fi
+            echo "service_name=${{ inputs.service_name }}" >> $GITHUB_OUTPUT
+          fi
+
+          if [ "${{ inputs.rollback_type }}" == "git_revision" ]; then
+            if [ -z "${{ inputs.git_revision }}" ]; then
+              echo "ERROR: Git revision is required for git_revision rollback"
+              exit 1
+            fi
+            echo "git_revision=${{ inputs.git_revision }}" >> $GITHUB_OUTPUT
+          fi
+
+          echo "=== Rollback Configuration ==="
+          echo "Environment: ${{ inputs.environment }}"
+          echo "Namespace: $NAMESPACE"
+          echo "Rollback Type: ${{ inputs.rollback_type }}"
+          echo "Service: ${{ inputs.service_name }}"
+          echo "Git Revision: ${{ inputs.git_revision }}"
+
+  rollback-specific-service:
+    name: Rollback Specific Service
+    runs-on: ubuntu-latest
+    needs: validate-inputs
+    if: inputs.rollback_type == 'specific_service'
+    environment:
+      name: ${{ inputs.environment }}
+    steps:
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure Kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Verify Cluster Connection
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Get Current Status
+        run: |
+          NAMESPACE="${{ needs.validate-inputs.outputs.namespace }}"
+          SERVICE="${{ inputs.service_name }}"
+
+          echo "=== Current Status for $SERVICE ==="
+
+          # Check deployment
+          if kubectl get deployment "$SERVICE" -n "$NAMESPACE" &>/dev/null; then
+            echo "Deployment found:"
+            kubectl rollout history deployment/"$SERVICE" -n "$NAMESPACE"
+          fi
+
+          # Check statefulset
+          if kubectl get statefulset "$SERVICE" -n "$NAMESPACE" &>/dev/null; then
+            echo "StatefulSet found:"
+            kubectl rollout history statefulset/"$SERVICE" -n "$NAMESPACE"
+          fi
+
+      - name: Perform Rollback
+        id: rollback
+        run: |
+          NAMESPACE="${{ needs.validate-inputs.outputs.namespace }}"
+          SERVICE="${{ inputs.service_name }}"
+          REVISION_COUNT="${{ inputs.revision_count }}"
+
+          echo "=== Rolling back $SERVICE by $REVISION_COUNT revision(s) ==="
+
+          ROLLBACK_PERFORMED=false
+
+          # Rollback deployment if exists
+          if kubectl get deployment "$SERVICE" -n "$NAMESPACE" &>/dev/null; then
+            echo "Rolling back Deployment..."
+            kubectl rollout undo deployment/"$SERVICE" -n "$NAMESPACE"
+            kubectl rollout status deployment/"$SERVICE" -n "$NAMESPACE" --timeout=300s
+            ROLLBACK_PERFORMED=true
+          fi
+
+          # Rollback statefulset if exists
+          if kubectl get statefulset "$SERVICE" -n "$NAMESPACE" &>/dev/null; then
+            echo "Rolling back StatefulSet..."
+            kubectl rollout undo statefulset/"$SERVICE" -n "$NAMESPACE"
+            kubectl rollout status statefulset/"$SERVICE" -n "$NAMESPACE" --timeout=300s
+            ROLLBACK_PERFORMED=true
+          fi
+
+          if [ "$ROLLBACK_PERFORMED" == "false" ]; then
+            echo "ERROR: No deployment or statefulset found for $SERVICE"
+            exit 1
+          fi
+
+          echo "rollback_status=success" >> $GITHUB_OUTPUT
+
+      - name: Verify Rollback
+        run: |
+          NAMESPACE="${{ needs.validate-inputs.outputs.namespace }}"
+          SERVICE="${{ inputs.service_name }}"
+
+          echo "=== Post-Rollback Status ==="
+
+          echo "Pods:"
+          kubectl get pods -n "$NAMESPACE" | grep -i "$SERVICE" || echo "No pods found"
+
+          echo ""
+          echo "Pod Details:"
+          kubectl describe pods -n "$NAMESPACE" -l app="$SERVICE" 2>/dev/null | head -50 || true
+
+  rollback-all-services:
+    name: Rollback All Services
+    runs-on: ubuntu-latest
+    needs: validate-inputs
+    if: inputs.rollback_type == 'all_services'
+    environment:
+      name: ${{ inputs.environment }}
+    steps:
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure Kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Get All Workloads
+        id: get-workloads
+        run: |
+          NAMESPACE="${{ needs.validate-inputs.outputs.namespace }}"
+
+          echo "=== Current Workloads in $NAMESPACE ==="
+
+          echo "Deployments:"
+          kubectl get deployments -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n'
+
+          echo ""
+          echo "StatefulSets:"
+          kubectl get statefulsets -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n'
+
+      - name: Rollback All Deployments
+        run: |
+          NAMESPACE="${{ needs.validate-inputs.outputs.namespace }}"
+
+          echo "=== Rolling back all Deployments ==="
+
+          for deploy in $(kubectl get deployments -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}'); do
+            echo "Rolling back Deployment: $deploy"
+            kubectl rollout undo deployment/"$deploy" -n "$NAMESPACE" || true
+          done
+
+          # Wait for rollouts
+          for deploy in $(kubectl get deployments -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}'); do
+            echo "Waiting for Deployment: $deploy"
+            kubectl rollout status deployment/"$deploy" -n "$NAMESPACE" --timeout=300s || true
+          done
+
+      - name: Rollback All StatefulSets
+        run: |
+          NAMESPACE="${{ needs.validate-inputs.outputs.namespace }}"
+
+          echo "=== Rolling back all StatefulSets ==="
+
+          for sts in $(kubectl get statefulsets -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}'); do
+            echo "Rolling back StatefulSet: $sts"
+            kubectl rollout undo statefulset/"$sts" -n "$NAMESPACE" || true
+          done
+
+          # Wait for rollouts
+          for sts in $(kubectl get statefulsets -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}'); do
+            echo "Waiting for StatefulSet: $sts"
+            kubectl rollout status statefulset/"$sts" -n "$NAMESPACE" --timeout=300s || true
+          done
+
+      - name: Verify Rollback
+        run: |
+          NAMESPACE="${{ needs.validate-inputs.outputs.namespace }}"
+
+          echo "=== Post-Rollback Status ==="
+
+          echo "Pods:"
+          kubectl get pods -n "$NAMESPACE"
+
+          echo ""
+          echo "Deployments:"
+          kubectl get deployments -n "$NAMESPACE"
+
+          echo ""
+          echo "StatefulSets:"
+          kubectl get statefulsets -n "$NAMESPACE"
+
+  rollback-to-git-revision:
+    name: Rollback to Git Revision
+    runs-on: ubuntu-latest
+    needs: validate-inputs
+    if: inputs.rollback_type == 'git_revision'
+    environment:
+      name: ${{ inputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Checkout Target Revision
+        run: |
+          git checkout ${{ inputs.git_revision }}
+          echo "Checked out to: $(git rev-parse HEAD)"
+          echo "Commit message: $(git log -1 --pretty=%B)"
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: ${{ env.KUSTOMIZE_VERSION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure Kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Build Manifests from Revision
+        run: |
+          ENV="${{ inputs.environment }}"
+
+          echo "Building manifests from revision ${{ inputs.git_revision }}..."
+          kustomize build k8s/overlays/$ENV > /tmp/rollback-manifests.yaml
+
+          echo "Generated resources:"
+          grep "^kind:" /tmp/rollback-manifests.yaml | sort | uniq -c
+
+      - name: Apply Rollback Manifests
+        run: |
+          NAMESPACE="${{ needs.validate-inputs.outputs.namespace }}"
+
+          echo "=== Applying manifests from revision ${{ inputs.git_revision }} ==="
+          kubectl apply -f /tmp/rollback-manifests.yaml
+
+      - name: Wait for Rollout
+        run: |
+          NAMESPACE="${{ needs.validate-inputs.outputs.namespace }}"
+
+          echo "Waiting for workloads to stabilize..."
+
+          # Wait for deployments
+          for deploy in $(kubectl get deployments -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}'); do
+            echo "Waiting for Deployment: $deploy"
+            kubectl rollout status deployment/"$deploy" -n "$NAMESPACE" --timeout=300s || true
+          done
+
+          # Wait for statefulsets
+          for sts in $(kubectl get statefulsets -n "$NAMESPACE" -o jsonpath='{.items[*].metadata.name}'); do
+            echo "Waiting for StatefulSet: $sts"
+            kubectl rollout status statefulset/"$sts" -n "$NAMESPACE" --timeout=300s || true
+          done
+
+      - name: Verify Rollback
+        run: |
+          NAMESPACE="${{ needs.validate-inputs.outputs.namespace }}"
+
+          echo "=== Post-Rollback Status ==="
+
+          echo "Pods:"
+          kubectl get pods -n "$NAMESPACE"
+
+          echo ""
+          echo "Services:"
+          kubectl get services -n "$NAMESPACE"
+
+  summary:
+    name: Rollback Summary
+    runs-on: ubuntu-latest
+    needs: [validate-inputs, rollback-specific-service, rollback-all-services, rollback-to-git-revision]
+    if: always()
+    steps:
+      - name: Generate Summary
+        run: |
+          echo "## Rollback Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Namespace:** amoona-${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Rollback Type:** ${{ inputs.rollback_type }}" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ inputs.rollback_type }}" == "specific_service" ]; then
+            echo "**Service:** ${{ inputs.service_name }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ inputs.rollback_type }}" == "git_revision" ]; then
+            echo "**Git Revision:** ${{ inputs.git_revision }}" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Determine status
+          if [ "${{ needs.rollback-specific-service.result }}" == "success" ] || \
+             [ "${{ needs.rollback-all-services.result }}" == "success" ] || \
+             [ "${{ needs.rollback-to-git-revision.result }}" == "success" ]; then
+            echo "**Status:** ✅ Rollback completed successfully" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ needs.rollback-specific-service.result }}" == "skipped" ] && \
+               [ "${{ needs.rollback-all-services.result }}" == "skipped" ] && \
+               [ "${{ needs.rollback-to-git-revision.result }}" == "skipped" ]; then
+            echo "**Status:** ⏭️ Rollback skipped" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "**Status:** ❌ Rollback failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Verification Commands" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "kubectl get pods -n amoona-${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "kubectl get deployments -n amoona-${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "kubectl get statefulsets -n amoona-${{ inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Notify Completion
+        run: |
+          echo "Rollback workflow completed for ${{ inputs.environment }} environment"
+          echo "Type: ${{ inputs.rollback_type }}"

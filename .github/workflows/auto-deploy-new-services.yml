@@ -1,0 +1,337 @@
+name: Auto Deploy New Services
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'k8s/base/apps/**'
+  workflow_dispatch:
+    inputs:
+      service_name:
+        description: 'Service name to deploy (leave empty for auto-detect)'
+        required: false
+        type: string
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - prod
+
+env:
+  KUSTOMIZE_VERSION: '5.3.0'
+
+jobs:
+  detect-new-services:
+    name: Detect New Services
+    runs-on: ubuntu-latest
+    outputs:
+      new_services: ${{ steps.detect.outputs.new_services }}
+      has_new_services: ${{ steps.detect.outputs.has_new_services }}
+      environment: ${{ steps.set-env.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set Environment
+        id: set-env
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            echo "environment=${{ inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Detect New Services
+        id: detect
+        run: |
+          NEW_SERVICES=()
+
+          # If manual trigger with specific service
+          if [ -n "${{ inputs.service_name }}" ]; then
+            if [ -d "k8s/base/apps/${{ inputs.service_name }}" ]; then
+              NEW_SERVICES+=("${{ inputs.service_name }}")
+            else
+              echo "ERROR: Service ${{ inputs.service_name }} not found in k8s/base/apps/"
+              exit 1
+            fi
+          else
+            # Auto-detect new services from commit
+            if [ "${{ github.event_name }}" == "pull_request" ]; then
+              BASE_SHA=${{ github.event.pull_request.base.sha }}
+            else
+              BASE_SHA=${{ github.event.before }}
+            fi
+
+            # Handle first push
+            if [ -z "$BASE_SHA" ] || [ "$BASE_SHA" == "0000000000000000000000000000000000000000" ]; then
+              BASE_SHA=$(git rev-parse HEAD~1 2>/dev/null || echo "")
+            fi
+
+            # Find new directories in k8s/base/apps
+            if [ -n "$BASE_SHA" ]; then
+              for file in $(git diff --name-only --diff-filter=A "$BASE_SHA" HEAD | grep "^k8s/base/apps/"); do
+                SERVICE_DIR=$(echo "$file" | cut -d'/' -f4)
+                if [ -d "k8s/base/apps/$SERVICE_DIR" ]; then
+                  if [[ ! " ${NEW_SERVICES[*]} " =~ " $SERVICE_DIR " ]]; then
+                    NEW_SERVICES+=("$SERVICE_DIR")
+                  fi
+                fi
+              done
+            fi
+
+            # Also check for modified kustomization.yaml in apps (new service added to resources)
+            if [ -n "$BASE_SHA" ]; then
+              if git diff "$BASE_SHA" HEAD -- k8s/base/apps/kustomization.yaml 2>/dev/null | grep -q "^+.*- "; then
+                # Extract newly added resource lines
+                NEW_RESOURCES=$(git diff "$BASE_SHA" HEAD -- k8s/base/apps/kustomization.yaml | grep "^+.*- " | sed 's/^+.*- //' | tr -d ' ')
+                for resource in $NEW_RESOURCES; do
+                  if [ -d "k8s/base/apps/$resource" ]; then
+                    if [[ ! " ${NEW_SERVICES[*]} " =~ " $resource " ]]; then
+                      NEW_SERVICES+=("$resource")
+                    fi
+                  fi
+                done
+              fi
+            fi
+          fi
+
+          # Convert to JSON array
+          if [ ${#NEW_SERVICES[@]} -eq 0 ]; then
+            echo "new_services=[]" >> $GITHUB_OUTPUT
+            echo "has_new_services=false" >> $GITHUB_OUTPUT
+            echo "No new services detected"
+          else
+            SERVICES_JSON=$(printf '%s\n' "${NEW_SERVICES[@]}" | jq -R . | jq -s -c .)
+            echo "new_services=$SERVICES_JSON" >> $GITHUB_OUTPUT
+            echo "has_new_services=true" >> $GITHUB_OUTPUT
+            echo "New services detected: ${NEW_SERVICES[*]}"
+          fi
+
+  validate-services:
+    name: Validate New Services
+    runs-on: ubuntu-latest
+    needs: detect-new-services
+    if: needs.detect-new-services.outputs.has_new_services == 'true'
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.detect-new-services.outputs.new_services) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Service Structure
+        run: |
+          SERVICE_DIR="k8s/base/apps/${{ matrix.service }}"
+
+          echo "=== Validating service: ${{ matrix.service }} ==="
+
+          # Check required files
+          REQUIRED_FILES=("kustomization.yaml")
+          for file in "${REQUIRED_FILES[@]}"; do
+            if [ ! -f "$SERVICE_DIR/$file" ]; then
+              echo "ERROR: Missing required file: $file"
+              exit 1
+            fi
+          done
+
+          # Check for at least one resource file
+          RESOURCE_COUNT=$(find "$SERVICE_DIR" -name "*.yaml" -o -name "*.yml" | wc -l)
+          if [ "$RESOURCE_COUNT" -lt 2 ]; then
+            echo "WARNING: Service may be missing resource files"
+          fi
+
+          echo "✅ Service structure validated"
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: ${{ env.KUSTOMIZE_VERSION }}
+
+      - name: Validate Kustomize Build
+        run: |
+          SERVICE_DIR="k8s/base/apps/${{ matrix.service }}"
+
+          echo "Building kustomization for ${{ matrix.service }}..."
+          kustomize build "$SERVICE_DIR" > /tmp/service-manifests.yaml
+
+          if [ $? -eq 0 ]; then
+            echo "✅ Kustomize build successful"
+            echo "Generated resources:"
+            grep "^kind:" /tmp/service-manifests.yaml | sort | uniq -c
+          else
+            echo "❌ Kustomize build failed"
+            exit 1
+          fi
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.4/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+
+      - name: Validate Kubernetes Manifests
+        run: |
+          SERVICE_DIR="k8s/base/apps/${{ matrix.service }}"
+
+          kustomize build "$SERVICE_DIR" | kubeconform -strict -summary \
+            -schema-location default \
+            -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+
+      - name: Security Scan
+        run: |
+          pip install checkov
+
+          SERVICE_DIR="k8s/base/apps/${{ matrix.service }}"
+
+          echo "Running security scan on ${{ matrix.service }}..."
+          checkov -d "$SERVICE_DIR" --framework kubernetes --quiet --compact || true
+
+  deploy-services:
+    name: Deploy New Services
+    runs-on: ubuntu-latest
+    needs: [detect-new-services, validate-services]
+    if: |
+      needs.detect-new-services.outputs.has_new_services == 'true' &&
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    environment:
+      name: ${{ needs.detect-new-services.outputs.environment }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Kustomize
+        uses: imranismail/setup-kustomize@v2
+        with:
+          kustomize-version: ${{ env.KUSTOMIZE_VERSION }}
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.29.0'
+
+      - name: Configure Kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Verify Cluster Connection
+        run: |
+          kubectl cluster-info
+          kubectl get nodes
+
+      - name: Deploy New Services
+        id: deploy
+        run: |
+          ENV="${{ needs.detect-new-services.outputs.environment }}"
+          NAMESPACE="amoona-$ENV"
+          NEW_SERVICES='${{ needs.detect-new-services.outputs.new_services }}'
+
+          echo "Deploying new services to $NAMESPACE namespace..."
+
+          # Build full environment manifests
+          kustomize build k8s/overlays/$ENV > /tmp/all-manifests.yaml
+
+          # Apply to cluster
+          kubectl apply -f /tmp/all-manifests.yaml
+
+          echo "namespace=$NAMESPACE" >> $GITHUB_OUTPUT
+
+      - name: Wait for New Services
+        run: |
+          NAMESPACE="${{ steps.deploy.outputs.namespace }}"
+          NEW_SERVICES='${{ needs.detect-new-services.outputs.new_services }}'
+
+          echo "Waiting for new services to be ready..."
+
+          for service in $(echo "$NEW_SERVICES" | jq -r '.[]'); do
+            echo "Checking service: $service"
+
+            # Check for deployment
+            if kubectl get deployment "$service" -n "$NAMESPACE" &>/dev/null; then
+              echo "Waiting for Deployment $service..."
+              kubectl rollout status deployment/"$service" -n "$NAMESPACE" --timeout=300s || true
+            fi
+
+            # Check for statefulset
+            if kubectl get statefulset "$service" -n "$NAMESPACE" &>/dev/null; then
+              echo "Waiting for StatefulSet $service..."
+              kubectl rollout status statefulset/"$service" -n "$NAMESPACE" --timeout=300s || true
+            fi
+          done
+
+      - name: Verify Services
+        run: |
+          NAMESPACE="${{ steps.deploy.outputs.namespace }}"
+          NEW_SERVICES='${{ needs.detect-new-services.outputs.new_services }}'
+
+          echo "=== Service Verification ==="
+
+          for service in $(echo "$NEW_SERVICES" | jq -r '.[]'); do
+            echo ""
+            echo "--- Service: $service ---"
+
+            # Get pods
+            echo "Pods:"
+            kubectl get pods -n "$NAMESPACE" -l app="$service" 2>/dev/null || \
+            kubectl get pods -n "$NAMESPACE" | grep -i "$service" || echo "No pods found"
+
+            # Get services
+            echo ""
+            echo "Services:"
+            kubectl get svc -n "$NAMESPACE" | grep -i "$service" || echo "No services found"
+
+            # Get PVCs if any
+            echo ""
+            echo "PVCs:"
+            kubectl get pvc -n "$NAMESPACE" | grep -i "$service" || echo "No PVCs found"
+          done
+
+      - name: Deployment Summary
+        run: |
+          ENV="${{ needs.detect-new-services.outputs.environment }}"
+          NAMESPACE="${{ steps.deploy.outputs.namespace }}"
+          NEW_SERVICES='${{ needs.detect-new-services.outputs.new_services }}'
+
+          echo "## New Services Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** $ENV" >> $GITHUB_STEP_SUMMARY
+          echo "**Namespace:** $NAMESPACE" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "### Deployed Services" >> $GITHUB_STEP_SUMMARY
+          for service in $(echo "$NEW_SERVICES" | jq -r '.[]'); do
+            echo "- ✅ $service" >> $GITHUB_STEP_SUMMARY
+          done
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "1. Verify the service is running: \`kubectl get pods -n $NAMESPACE\`" >> $GITHUB_STEP_SUMMARY
+          echo "2. Check service logs: \`kubectl logs -n $NAMESPACE -l app=<service-name>\`" >> $GITHUB_STEP_SUMMARY
+          echo "3. Configure Ingress if needed" >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    name: Notify
+    runs-on: ubuntu-latest
+    needs: [detect-new-services, deploy-services]
+    if: always() && needs.detect-new-services.outputs.has_new_services == 'true'
+    steps:
+      - name: Notify Success
+        if: needs.deploy-services.result == 'success'
+        run: |
+          echo "✅ New services deployed successfully to ${{ needs.detect-new-services.outputs.environment }}!"
+          echo "Services: ${{ needs.detect-new-services.outputs.new_services }}"
+
+      - name: Notify Failure
+        if: needs.deploy-services.result == 'failure'
+        run: |
+          echo "❌ New services deployment failed!"
+          echo "Services: ${{ needs.detect-new-services.outputs.new_services }}"
