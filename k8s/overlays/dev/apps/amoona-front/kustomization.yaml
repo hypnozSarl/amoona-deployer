@@ -18,4 +18,4 @@ commonLabels:
 
 images:
   - name: ghcr.io/hypnozsarl/amoona-front
-    newTag: "c437910"
+    newTag: "0bc4803"
