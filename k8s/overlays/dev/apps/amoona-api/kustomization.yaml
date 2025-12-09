@@ -23,7 +23,7 @@ labels:
 
 images:
   - name: ghcr.io/hypnozsarl/amoona-api
-    newTag: "7522034"
+    newTag: "e271f37"
 
 configMapGenerator:
   - name: amoona-api-config
