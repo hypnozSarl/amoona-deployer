@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: vault
+
+resources:
+  - namespace.yaml
+  - service-account.yaml
+  - rbac.yaml
+  - configmap.yaml
+  - statefulset.yaml
+  - service.yaml
+  - agent-injector.yaml
+  - webhook.yaml
+
+labels:
+  - pairs:
+      tier: security

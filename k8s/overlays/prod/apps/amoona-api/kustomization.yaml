@@ -14,6 +14,8 @@ resources:
 patches:
   - path: replicas-patch.yaml
   - path: resources-patch.yaml
+  # Uncomment below to use Vault for secrets instead of Kubernetes Secrets
+  # - path: vault-patch.yaml
 
 labels:
   - pairs:
@@ -22,7 +24,7 @@ labels:
 
 images:
   - name: ghcr.io/hypnozsarl/amoona-api
-    newTag: latest
+    newTag: e271f37
 
 configMapGenerator:
   - name: amoona-api-config

@@ -9,6 +9,7 @@ resources:
   - service.yaml
   - configmap.yaml
   - hpa.yaml
+  - service-account.yaml
 
 commonLabels:
   app.kubernetes.io/part-of: amoona

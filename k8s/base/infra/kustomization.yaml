@@ -9,3 +9,4 @@ resources:
   - logstash
   - kibana
   - sonarqube
+  - vault
