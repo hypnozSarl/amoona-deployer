@@ -37,10 +37,8 @@ spec:
             - secretRef:
                 name: pgadmin-secret
           env:
-            - name: PGADMIN_CONFIG_SERVER_MODE
-              value: "True"
-            - name: PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED
-              value: "False"
+            - name: PGADMIN_LISTEN_PORT
+              value: "80"
           volumeMounts:
             - name: pgadmin-data
               mountPath: /var/lib/pgadmin
@@ -49,11 +47,11 @@ spec:
               subPath: servers.json
           resources:
             requests:
-              memory: "128Mi"
-              cpu: "50m"
+              memory: "64Mi"
+              cpu: "10m"
             limits:
               memory: "256Mi"
-              cpu: "200m"
+              cpu: "100m"
           livenessProbe:
             httpGet:
               path: /misc/ping
