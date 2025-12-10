@@ -17,6 +17,7 @@ spec:
         - elasticsearch.dev.amoona.tech
         - kibana.dev.amoona.tech
         - sonarqube.dev.amoona.tech
+        - pgadmin.dev.amoona.tech
       secretName: amoona-dev-tls
   rules:
     # Grafana
@@ -102,3 +103,15 @@ spec:
                 name: sonarqube
                 port:
                   number: 9000
+
+    # pgAdmin - PostgreSQL Management
+    - host: pgadmin.dev.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: pgadmin
+                port:
+                  number: 80
