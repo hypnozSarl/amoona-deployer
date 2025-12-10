@@ -8,6 +8,7 @@ resources:
   - ingress
   - apps
   - security
-  - service-mesh
   - security-scanning
-  - audit-logging
+  # Components with their own namespaces - deploy separately:
+  # - service-mesh    -> kubectl apply -k k8s/base/service-mesh (linkerd namespace)
+  # - audit-logging   -> kubectl apply -k k8s/base/audit-logging (falco namespace)

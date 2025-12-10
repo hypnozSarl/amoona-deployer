@@ -10,4 +10,5 @@ resources:
   - logstash
   - kibana
   - sonarqube
-  - vault
+  # vault is excluded - it has its own namespace and must be deployed separately
+  # Use: kubectl apply -k k8s/base/infra/vault
