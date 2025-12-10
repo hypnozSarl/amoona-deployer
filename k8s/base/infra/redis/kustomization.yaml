@@ -5,6 +5,7 @@ resources:
   - configmap.yaml
   - deployment.yaml
   - service.yaml
+  - secret.yaml
 
 labels:
   - pairs:

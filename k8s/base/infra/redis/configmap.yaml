@@ -13,3 +13,5 @@ data:
     maxmemory-policy allkeys-lru
     appendonly yes
     appendfsync everysec
+    # Security: require password authentication
+    # Password is injected via environment variable at startup
