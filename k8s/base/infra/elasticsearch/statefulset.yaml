@@ -17,12 +17,17 @@ spec:
         app: elasticsearch
         component: search
     spec:
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+        runAsNonRoot: true
       initContainers:
         - name: fix-permissions
           image: busybox:1.36
           command: ["sh", "-c", "chown -R 1000:1000 /usr/share/elasticsearch/data"]
           securityContext:
-            privileged: true
+            runAsUser: 0
+            allowPrivilegeEscalation: false
           volumeMounts:
             - name: elasticsearch-data
               mountPath: /usr/share/elasticsearch/data
@@ -30,7 +35,11 @@ spec:
           image: busybox:1.36
           command: ["sysctl", "-w", "vm.max_map_count=262144"]
           securityContext:
-            privileged: true
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              add: ["SYS_RESOURCE"]
+              drop: ["ALL"]
       containers:
         - name: elasticsearch
           image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
@@ -45,7 +54,20 @@ spec:
             - name: ES_JAVA_OPTS
               value: "-Xms512m -Xmx512m"
             - name: xpack.security.enabled
+              value: "true"
+            - name: xpack.security.http.ssl.enabled
               value: "false"
+            - name: xpack.security.transport.ssl.enabled
+              value: "false"
+            - name: ELASTIC_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: elasticsearch-secret
+                  key: ELASTIC_PASSWORD
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           volumeMounts:
             - name: elasticsearch-data
               mountPath: /usr/share/elasticsearch/data
@@ -57,17 +79,23 @@ spec:
               memory: "2Gi"
               cpu: "1000m"
           livenessProbe:
-            httpGet:
-              path: /_cluster/health
-              port: 9200
-            initialDelaySeconds: 60
+            exec:
+              command:
+                - sh
+                - -c
+                - 'curl -s -u elastic:${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health | grep -q ''"status":"green"\|"status":"yellow"'''
+            initialDelaySeconds: 90
             periodSeconds: 10
+            timeoutSeconds: 5
           readinessProbe:
-            httpGet:
-              path: /_cluster/health
-              port: 9200
+            exec:
+              command:
+                - sh
+                - -c
+                - 'curl -s -u elastic:${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health | grep -q ''"status":"green"\|"status":"yellow"'''
             initialDelaySeconds: 30
             periodSeconds: 5
+            timeoutSeconds: 5
   volumeClaimTemplates:
     - metadata:
         name: elasticsearch-data

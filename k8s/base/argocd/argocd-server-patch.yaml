@@ -8,9 +8,8 @@ spec:
     spec:
       containers:
         - name: argocd-server
-          command:
-            - argocd-server
-            - --insecure
+          # Removed --insecure flag for security
+          # TLS is now handled by ingress controller or ArgoCD's built-in TLS
           resources:
             requests:
               cpu: 50m

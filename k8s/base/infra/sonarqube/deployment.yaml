@@ -18,15 +18,26 @@ spec:
         app: sonarqube
         component: code-quality
     spec:
+      securityContext:
+        fsGroup: 1000
+        runAsUser: 1000
+        runAsNonRoot: true
       initContainers:
         - name: init-sysctl
           image: busybox:1.36
           command: ["sysctl", "-w", "vm.max_map_count=262144"]
           securityContext:
-            privileged: true
+            runAsUser: 0
+            allowPrivilegeEscalation: false
+            capabilities:
+              add: ["SYS_RESOURCE"]
+              drop: ["ALL"]
         - name: init-volume
           image: busybox:1.36
           command: ["sh", "-c", "chown -R 1000:1000 /opt/sonarqube/data /opt/sonarqube/extensions /opt/sonarqube/logs"]
+          securityContext:
+            runAsUser: 0
+            allowPrivilegeEscalation: false
           volumeMounts:
             - name: sonarqube-data
               mountPath: /opt/sonarqube/data
@@ -37,6 +48,10 @@ spec:
       containers:
         - name: sonarqube
           image: sonarqube:10.7-community
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           ports:
             - containerPort: 9000
               name: http

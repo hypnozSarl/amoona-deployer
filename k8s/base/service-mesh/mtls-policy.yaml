@@ -1,0 +1,112 @@
+# Server-side mTLS policy - require mTLS for all pods in amoona namespaces
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: amoona-api-mtls
+  namespace: amoona-prod
+  labels:
+    app: amoona-api
+spec:
+  podSelector:
+    matchLabels:
+      app: amoona-api
+  port: 8080
+  proxyProtocol: HTTP/2
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: postgres-mtls
+  namespace: amoona-prod
+  labels:
+    app: postgres
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  port: 5432
+  proxyProtocol: opaque
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: redis-mtls
+  namespace: amoona-prod
+  labels:
+    app: redis
+spec:
+  podSelector:
+    matchLabels:
+      app: redis
+  port: 6379
+  proxyProtocol: opaque
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: elasticsearch-mtls
+  namespace: amoona-prod
+  labels:
+    app: elasticsearch
+spec:
+  podSelector:
+    matchLabels:
+      app: elasticsearch
+  port: 9200
+  proxyProtocol: HTTP/1
+---
+# Authorization policy - only allow authenticated (mTLS) connections
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  name: amoona-api-authz
+  namespace: amoona-prod
+spec:
+  server:
+    name: amoona-api-mtls
+  client:
+    meshTLS:
+      identities:
+        - "*.amoona-prod.serviceaccount.identity.linkerd.cluster.local"
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  name: postgres-authz
+  namespace: amoona-prod
+spec:
+  server:
+    name: postgres-mtls
+  client:
+    meshTLS:
+      identities:
+        - "amoona-api.amoona-prod.serviceaccount.identity.linkerd.cluster.local"
+        - "sonarqube.amoona-prod.serviceaccount.identity.linkerd.cluster.local"
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  name: redis-authz
+  namespace: amoona-prod
+spec:
+  server:
+    name: redis-mtls
+  client:
+    meshTLS:
+      identities:
+        - "amoona-api.amoona-prod.serviceaccount.identity.linkerd.cluster.local"
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: ServerAuthorization
+metadata:
+  name: elasticsearch-authz
+  namespace: amoona-prod
+spec:
+  server:
+    name: elasticsearch-mtls
+  client:
+    meshTLS:
+      identities:
+        - "amoona-api.amoona-prod.serviceaccount.identity.linkerd.cluster.local"
+        - "logstash.amoona-prod.serviceaccount.identity.linkerd.cluster.local"
+        - "kibana.amoona-prod.serviceaccount.identity.linkerd.cluster.local"

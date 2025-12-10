@@ -7,3 +7,7 @@ resources:
   - monitoring
   - ingress
   - apps
+  - security
+  - service-mesh
+  - security-scanning
+  - audit-logging

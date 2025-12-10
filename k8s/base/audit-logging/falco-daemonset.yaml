@@ -1,0 +1,150 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: falco
+  namespace: falco
+  labels:
+    app: falco
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: falco
+  labels:
+    app: falco
+rules:
+  - apiGroups: [""]
+    resources: ["nodes", "namespaces", "pods", "replicationcontrollers", "services", "events", "configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["daemonsets", "deployments", "replicasets", "statefulsets"]
+    verbs: ["get", "list", "watch"]
+  - nonResourceURLs: ["/healthz", "/healthz/*"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: falco
+  labels:
+    app: falco
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: falco
+subjects:
+  - kind: ServiceAccount
+    name: falco
+    namespace: falco
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: falco
+  namespace: falco
+  labels:
+    app: falco
+    app.kubernetes.io/name: falco
+spec:
+  selector:
+    matchLabels:
+      app: falco
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: falco
+        app.kubernetes.io/name: falco
+    spec:
+      serviceAccountName: falco
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/control-plane
+      containers:
+        - name: falco
+          image: falcosecurity/falco-no-driver:0.37.0
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          args:
+            - /usr/bin/falco
+            - --cri
+            - /run/containerd/containerd.sock
+            - -pk
+          env:
+            - name: FALCO_K8S_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8765
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8765
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: config
+              mountPath: /etc/falco
+            - name: containerd-socket
+              mountPath: /run/containerd/containerd.sock
+              readOnly: true
+            - name: proc
+              mountPath: /host/proc
+              readOnly: true
+            - name: dev
+              mountPath: /host/dev
+              readOnly: true
+            - name: logs
+              mountPath: /var/log/falco
+      volumes:
+        - name: config
+          configMap:
+            name: falco-config
+        - name: containerd-socket
+          hostPath:
+            path: /run/containerd/containerd.sock
+            type: Socket
+        - name: proc
+          hostPath:
+            path: /proc
+        - name: dev
+          hostPath:
+            path: /dev
+        - name: logs
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: falco
+  namespace: falco
+  labels:
+    app: falco
+spec:
+  selector:
+    app: falco
+  ports:
+    - name: web
+      port: 8765
+      targetPort: 8765
+      protocol: TCP

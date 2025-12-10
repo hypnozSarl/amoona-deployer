@@ -1,0 +1,179 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: falco-config
+  namespace: falco
+  labels:
+    app: falco
+data:
+  falco.yaml: |
+    # Falco configuration for Kubernetes security monitoring
+
+    # Rules files
+    rules_file:
+      - /etc/falco/falco_rules.yaml
+      - /etc/falco/falco_rules.local.yaml
+      - /etc/falco/k8s_audit_rules.yaml
+      - /etc/falco/rules.d
+
+    # Watch config file for changes
+    watch_config_files: true
+
+    # Output settings
+    time_format_iso_8601: true
+    json_output: true
+    json_include_output_property: true
+    json_include_tags_property: true
+
+    # Log level
+    log_stderr: true
+    log_syslog: false
+    log_level: info
+
+    # Output channels
+    stdout_output:
+      enabled: true
+
+    file_output:
+      enabled: true
+      keep_alive: false
+      filename: /var/log/falco/events.json
+
+    http_output:
+      enabled: false
+      url: ""
+
+    # Priority filter (minimum priority to output)
+    priority: notice
+
+    # Buffer settings
+    buffered_outputs: true
+    outputs_queue:
+      capacity: 0
+
+    # Syscall event drops
+    syscall_event_drops:
+      threshold: 0.1
+      actions:
+        - log
+        - alert
+      rate: 0.03333
+      max_burst: 1
+
+    # gRPC server
+    grpc:
+      enabled: false
+
+    # Metrics
+    metrics:
+      enabled: true
+      interval: 1h
+      output_rule: true
+      rules_counters_enabled: true
+      resource_utilization_enabled: true
+      state_counters_enabled: true
+      kernel_event_counters_enabled: true
+      libbpf_stats_enabled: true
+
+  falco_rules.local.yaml: |
+    # Custom rules for Amoona infrastructure
+
+    # Detect shell spawned in container
+    - rule: Shell Spawned in Container
+      desc: Detect shell being spawned inside a container
+      condition: >
+        spawned_process and
+        container and
+        proc.name in (shell_binaries)
+      output: >
+        Shell spawned in container
+        (user=%user.name container_id=%container.id container_name=%container.name
+        shell=%proc.name parent=%proc.pname cmdline=%proc.cmdline)
+      priority: WARNING
+      tags: [container, shell, mitre_execution]
+
+    # Detect privilege escalation attempts
+    - rule: Privilege Escalation Attempt
+      desc: Detect attempts to escalate privileges
+      condition: >
+        spawned_process and
+        container and
+        (proc.name in (sudo, su) or
+         proc.args contains "chmod +s" or
+         proc.args contains "setuid")
+      output: >
+        Privilege escalation attempt detected
+        (user=%user.name container_id=%container.id command=%proc.cmdline)
+      priority: CRITICAL
+      tags: [container, privilege_escalation, mitre_privilege_escalation]
+
+    # Detect sensitive file access
+    - rule: Sensitive File Access
+      desc: Detect access to sensitive files
+      condition: >
+        open_read and
+        container and
+        fd.name in (/etc/shadow, /etc/passwd, /etc/sudoers, /root/.ssh/id_rsa)
+      output: >
+        Sensitive file accessed
+        (user=%user.name file=%fd.name container_id=%container.id)
+      priority: WARNING
+      tags: [container, filesystem, mitre_credential_access]
+
+    # Detect outbound connections from database
+    - rule: Outbound Connection from Database
+      desc: Detect outbound network connections from database containers
+      condition: >
+        outbound and
+        container and
+        container.image.repository contains "postgres"
+      output: >
+        Unexpected outbound connection from database
+        (user=%user.name connection=%fd.name container_id=%container.id)
+      priority: CRITICAL
+      tags: [container, network, database]
+
+    # Detect package management in container
+    - rule: Package Management in Container
+      desc: Detect package management commands in running containers
+      condition: >
+        spawned_process and
+        container and
+        proc.name in (apt, apt-get, yum, dnf, apk, pip, npm)
+      output: >
+        Package management detected in container
+        (user=%user.name container_id=%container.id command=%proc.cmdline)
+      priority: WARNING
+      tags: [container, package_management]
+
+    # Detect crypto mining
+    - rule: Crypto Mining Activity
+      desc: Detect potential crypto mining activity
+      condition: >
+        spawned_process and
+        container and
+        (proc.name in (xmrig, minerd, cpuminer) or
+         proc.args contains "stratum+tcp" or
+         proc.args contains "mining" or
+         proc.args contains "cryptonight")
+      output: >
+        Potential crypto mining activity detected
+        (user=%user.name container_id=%container.id command=%proc.cmdline)
+      priority: CRITICAL
+      tags: [container, cryptomining, mitre_resource_hijacking]
+
+    # Detect secrets in environment variables
+    - rule: Secret Exposed in Env Var
+      desc: Detect secrets potentially exposed in environment variables
+      condition: >
+        spawned_process and
+        container and
+        (proc.env contains "PASSWORD=" or
+         proc.env contains "SECRET=" or
+         proc.env contains "API_KEY=" or
+         proc.env contains "TOKEN=")
+      output: >
+        Secret potentially exposed in environment variable
+        (user=%user.name container_id=%container.id proc=%proc.name)
+      priority: WARNING
+      tags: [container, secrets, mitre_credential_access]

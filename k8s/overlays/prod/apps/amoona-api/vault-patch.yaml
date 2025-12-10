@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: amoona-api
+spec:
+  template:
+    metadata:
+      annotations:
+        # Enable Vault Agent Injector
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "amoona-api"
+        vault.hashicorp.com/agent-inject-status: "update"
+
+        # Inject database secrets
+        vault.hashicorp.com/agent-inject-secret-database.properties: "secret/data/amoona/database"
+        vault.hashicorp.com/agent-inject-template-database.properties: |
+          {{- with secret "secret/data/amoona/database" -}}
+          spring.datasource.url={{ .Data.data.url }}
+          spring.datasource.username={{ .Data.data.username }}
+          spring.datasource.password={{ .Data.data.password }}
+          {{- end }}
+
+        # Inject Redis secrets
+        vault.hashicorp.com/agent-inject-secret-redis.properties: "secret/data/amoona/redis"
+        vault.hashicorp.com/agent-inject-template-redis.properties: |
+          {{- with secret "secret/data/amoona/redis" -}}
+          spring.data.redis.host={{ .Data.data.host }}
+          spring.data.redis.port={{ .Data.data.port }}
+          spring.data.redis.password={{ .Data.data.password }}
+          {{- end }}
+
+        # Inject MinIO secrets
+        vault.hashicorp.com/agent-inject-secret-minio.properties: "secret/data/amoona/minio"
+        vault.hashicorp.com/agent-inject-template-minio.properties: |
+          {{- with secret "secret/data/amoona/minio" -}}
+          minio.endpoint={{ .Data.data.endpoint }}
+          minio.access-key={{ .Data.data.access_key }}
+          minio.secret-key={{ .Data.data.secret_key }}
+          {{- end }}
+
+        # Inject JWT secret
+        vault.hashicorp.com/agent-inject-secret-jwt.properties: "secret/data/amoona/jwt"
+        vault.hashicorp.com/agent-inject-template-jwt.properties: |
+          {{- with secret "secret/data/amoona/jwt" -}}
+          jwt.secret={{ .Data.data.secret }}
+          {{- end }}
+
+    spec:
+      serviceAccountName: amoona-api
