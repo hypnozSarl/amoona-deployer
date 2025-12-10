@@ -37,20 +37,10 @@ ELASTIC_PASSWORD=$(generate_password)
 
 echo "Generated secure passwords."
 
-# Create secrets-patch.yaml from template
-SECRETS_PATCH_TEMPLATE="$OVERLAY_DIR/secrets-patch.example.yaml"
+# Create secrets-patch.yaml
 SECRETS_PATCH_OUTPUT="$OVERLAY_DIR/secrets-patch.yaml"
 
-if [[ -f "$SECRETS_PATCH_TEMPLATE" ]]; then
-    sed -e "s|<REPLACE_WITH_STRONG_PASSWORD>|$POSTGRES_PASSWORD|g" \
-        -e "s|<REPLACE_WITH_DEV_PASSWORD>|$POSTGRES_PASSWORD|g" \
-        "$SECRETS_PATCH_TEMPLATE" > "$SECRETS_PATCH_OUTPUT.tmp"
-
-    # Replace individual passwords
-    sed -i.bak -e "0,/<REPLACE_WITH_STRONG_PASSWORD>/{s|<REPLACE_WITH_STRONG_PASSWORD>|$POSTGRES_PASSWORD|}" "$SECRETS_PATCH_OUTPUT.tmp"
-
-    # Manual replacement for each secret
-    cat > "$SECRETS_PATCH_OUTPUT" << EOF
+cat > "$SECRETS_PATCH_OUTPUT" << EOF
 apiVersion: v1
 kind: Secret
 metadata:
@@ -92,9 +82,7 @@ stringData:
 EOF
     fi
 
-    rm -f "$SECRETS_PATCH_OUTPUT.tmp" "$SECRETS_PATCH_OUTPUT.tmp.bak"
-    echo "Created: $SECRETS_PATCH_OUTPUT"
-fi
+echo "Created: $SECRETS_PATCH_OUTPUT"
 
 # Create amoona-api secrets
 API_SECRETS_DIR="$OVERLAY_DIR/apps/amoona-api"
