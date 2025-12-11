@@ -1,0 +1,18 @@
+# Configuration for Traefik to add PostgreSQL TCP entrypoint
+# This should be applied as a HelmChartConfig if using K3s default Traefik
+# Or as additional values for Traefik Helm chart
+---
+apiVersion: helm.cattle.io/v1
+kind: HelmChartConfig
+metadata:
+  name: traefik
+  namespace: kube-system
+spec:
+  valuesContent: |-
+    ports:
+      postgres:
+        port: 5432
+        expose:
+          default: true
+        exposedPort: 5432
+        protocol: TCP

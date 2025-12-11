@@ -5,6 +5,7 @@ resources:
   - secret.yaml
   - statefulset.yaml
   - service.yaml
+  - ingressroute-tcp.yaml
 
 labels:
   - pairs:
