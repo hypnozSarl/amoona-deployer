@@ -2,14 +2,14 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - cert-manager
-  - traefik
   - infra
   - monitoring
   - ingress
   - apps
   - security
-  - security-scanning
   # Components with their own namespaces - deploy separately:
-  # - service-mesh    -> kubectl apply -k k8s/base/service-mesh (linkerd namespace)
-  # - audit-logging   -> kubectl apply -k k8s/base/audit-logging (falco namespace)
+  # - cert-manager      -> kubectl apply -k k8s/base/cert-manager
+  # - traefik           -> kubectl apply -f k8s/base/traefik/postgres-entrypoint.yaml
+  # - security-scanning -> kubectl apply -k k8s/base/security-scanning (trivy-system namespace)
+  # - service-mesh      -> kubectl apply -k k8s/base/service-mesh (linkerd namespace)
+  # - audit-logging     -> kubectl apply -k k8s/base/audit-logging (falco namespace)
