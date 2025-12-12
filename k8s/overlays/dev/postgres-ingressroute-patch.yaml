@@ -8,9 +8,7 @@ spec:
   entryPoints:
     - postgres
   routes:
-    - match: HostSNI(`postgres.dev.amoona.tech`) || HostSNI(`*`)
+    - match: HostSNI(`*`)
       services:
         - name: postgres
           port: 5432
-  tls:
-    passthrough: true
