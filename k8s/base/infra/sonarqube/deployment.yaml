@@ -20,8 +20,6 @@ spec:
     spec:
       securityContext:
         fsGroup: 1000
-        runAsUser: 1000
-        runAsNonRoot: true
       initContainers:
         - name: init-sysctl
           image: busybox:1.36
@@ -45,6 +43,8 @@ spec:
         - name: sonarqube
           image: sonarqube:10.7-community
           securityContext:
+            runAsUser: 1000
+            runAsNonRoot: true
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
