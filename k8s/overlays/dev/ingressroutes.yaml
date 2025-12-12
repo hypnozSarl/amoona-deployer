@@ -1,0 +1,153 @@
+# Traefik IngressRoutes for dev environment
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: grafana
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: Host(`grafana.dev.amoona.tech`)
+      kind: Rule
+      services:
+        - name: grafana
+          port: 3000
+  tls:
+    certResolver: letsencrypt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: prometheus
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: Host(`prometheus.dev.amoona.tech`)
+      kind: Rule
+      services:
+        - name: prometheus
+          port: 9090
+  tls:
+    certResolver: letsencrypt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: minio-console
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: Host(`minio.dev.amoona.tech`)
+      kind: Rule
+      services:
+        - name: minio
+          port: 9001
+  tls:
+    certResolver: letsencrypt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: minio-api
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: Host(`s3.dev.amoona.tech`)
+      kind: Rule
+      services:
+        - name: minio
+          port: 9000
+  tls:
+    certResolver: letsencrypt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: elasticsearch
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: Host(`elasticsearch.dev.amoona.tech`)
+      kind: Rule
+      services:
+        - name: elasticsearch
+          port: 9200
+  tls:
+    certResolver: letsencrypt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: kibana
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: Host(`kibana.dev.amoona.tech`)
+      kind: Rule
+      services:
+        - name: kibana
+          port: 5601
+  tls:
+    certResolver: letsencrypt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: sonarqube
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: Host(`sonarqube.dev.amoona.tech`)
+      kind: Rule
+      services:
+        - name: sonarqube
+          port: 9000
+  tls:
+    certResolver: letsencrypt
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: pgadmin
+  annotations:
+    kubernetes.io/ingress.class: traefik
+spec:
+  entryPoints:
+    - web
+    - websecure
+  routes:
+    - match: Host(`pgadmin.dev.amoona.tech`)
+      kind: Rule
+      services:
+        - name: pgadmin
+          port: 80
+  tls:
+    certResolver: letsencrypt

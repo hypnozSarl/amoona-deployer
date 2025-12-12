@@ -6,11 +6,11 @@ namespace: amoona-dev
 resources:
   - namespace.yaml
   - ../../base
+  - ingressroutes.yaml
 
 patches:
   - path: secrets-patch.yaml
   - path: resource-patches.yaml
-  - path: ingress-patch.yaml
   - path: postgres-ingressroute-patch.yaml
   - path: postgres-service-patch.yaml
 

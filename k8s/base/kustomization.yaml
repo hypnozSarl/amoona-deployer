@@ -4,9 +4,9 @@ kind: Kustomization
 resources:
   - infra
   - monitoring
-  - ingress
   - apps
   - security
+  # ingress - removed, using Traefik IngressRoutes in overlays instead
   # Components with their own namespaces - deploy separately:
   # - cert-manager      -> kubectl apply -k k8s/base/cert-manager
   # - traefik           -> kubectl apply -f k8s/base/traefik/postgres-entrypoint.yaml
