@@ -24,7 +24,7 @@ complete-manifest.yaml
 # Kubernetes Secrets - IMPORTANT: Never commit production secrets!
 # Dev secrets are allowed for ArgoCD deployment
 k8s/overlays/prod/secrets-patch.yaml
-k8s/overlays/*/apps/*/secrets.yaml
+k8s/overlays/prod/apps/*/secrets.yaml
 !k8s/overlays/*/secrets-patch.example.yaml
 !k8s/overlays/*/apps/*/secrets.example.yaml
 
