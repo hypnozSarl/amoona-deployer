@@ -248,6 +248,78 @@ spec:
           port: 5601
 
 ---
+# Allow SonarQube access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-sonarqube-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: sonarqube
+  policyTypes:
+    - Ingress
+  ingress:
+    - from: []  # Allow from ingress controller
+      ports:
+        - protocol: TCP
+          port: 9000
+
+---
+# Allow Prometheus external access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: prometheus
+  policyTypes:
+    - Ingress
+  ingress:
+    - from: []  # Allow from ingress controller
+      ports:
+        - protocol: TCP
+          port: 9090
+
+---
+# Allow pgAdmin access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-pgadmin-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: pgadmin
+  policyTypes:
+    - Ingress
+  ingress:
+    - from: []  # Allow from ingress controller
+      ports:
+        - protocol: TCP
+          port: 80
+
+---
+# Allow Elasticsearch external access
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-elasticsearch-ingress
+spec:
+  podSelector:
+    matchLabels:
+      app: elasticsearch
+  policyTypes:
+    - Ingress
+  ingress:
+    - from: []  # Allow from ingress controller
+      ports:
+        - protocol: TCP
+          port: 9200
+
+---
 # Default deny all egress (optional - uncomment if needed)
 # apiVersion: networking.k8s.io/v1
 # kind: NetworkPolicy
