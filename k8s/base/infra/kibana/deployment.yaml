@@ -25,21 +25,10 @@ spec:
           env:
             - name: ELASTICSEARCH_HOSTS
               value: '["http://elasticsearch:9200"]'
-            - name: ELASTICSEARCH_USERNAME
-              value: "elastic"
-            - name: ELASTICSEARCH_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: elasticsearch-secret
-                  key: ELASTIC_PASSWORD
             - name: SERVER_NAME
               value: "kibana"
             - name: SERVER_HOST
               value: "0.0.0.0"
-            - name: XPACK_SECURITY_ENABLED
-              value: "true"
-            - name: XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY
-              value: "amoona-kibana-encryption-key-32ch"
           resources:
             requests:
               memory: "512Mi"

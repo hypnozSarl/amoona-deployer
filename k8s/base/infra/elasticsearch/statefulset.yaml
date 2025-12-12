@@ -19,8 +19,6 @@ spec:
     spec:
       securityContext:
         fsGroup: 1000
-        runAsUser: 1000
-        runAsNonRoot: true
       initContainers:
         - name: fix-permissions
           image: busybox:1.36
@@ -50,17 +48,10 @@ spec:
             - name: ES_JAVA_OPTS
               value: "-Xms512m -Xmx512m"
             - name: xpack.security.enabled
-              value: "true"
-            - name: xpack.security.http.ssl.enabled
               value: "false"
-            - name: xpack.security.transport.ssl.enabled
-              value: "false"
-            - name: ELASTIC_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: elasticsearch-secret
-                  key: ELASTIC_PASSWORD
           securityContext:
+            runAsUser: 1000
+            runAsNonRoot: true
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
@@ -75,20 +66,16 @@ spec:
               memory: "2Gi"
               cpu: "1000m"
           livenessProbe:
-            exec:
-              command:
-                - sh
-                - -c
-                - 'curl -s -u elastic:${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health | grep -q ''"status":"green"\|"status":"yellow"'''
+            httpGet:
+              path: /_cluster/health
+              port: 9200
             initialDelaySeconds: 90
             periodSeconds: 10
             timeoutSeconds: 5
           readinessProbe:
-            exec:
-              command:
-                - sh
-                - -c
-                - 'curl -s -u elastic:${ELASTIC_PASSWORD} http://localhost:9200/_cluster/health | grep -q ''"status":"green"\|"status":"yellow"'''
+            httpGet:
+              path: /_cluster/health
+              port: 9200
             initialDelaySeconds: 30
             periodSeconds: 5
             timeoutSeconds: 5
