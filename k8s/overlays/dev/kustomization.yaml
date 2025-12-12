@@ -12,6 +12,7 @@ patches:
   - path: resource-patches.yaml
   - path: ingress-patch.yaml
   - path: postgres-ingressroute-patch.yaml
+  - path: postgres-service-patch.yaml
 
 labels:
   - pairs:
