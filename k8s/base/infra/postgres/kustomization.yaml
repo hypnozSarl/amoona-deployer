@@ -5,7 +5,7 @@ resources:
   - secret.yaml
   - statefulset.yaml
   - service.yaml
-  - ingressroute-tcp.yaml
+  # ingressroute-tcp.yaml - moved to overlays
 
 labels:
   - pairs:
