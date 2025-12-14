@@ -18,7 +18,7 @@ env:
 jobs:
   health-check:
     name: Cluster Health Check
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       cluster_status: ${{ steps.cluster.outputs.status }}
       nodes_status: ${{ steps.nodes.outputs.status }}
@@ -178,7 +178,7 @@ jobs:
 
   notify:
     name: Send Notifications
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: health-check
     if: always()
     steps:

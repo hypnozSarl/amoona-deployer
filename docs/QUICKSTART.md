@@ -30,6 +30,7 @@ kubectl apply -k k8s/overlays/prod
 # 6. Vérifier
 kubectl get pods -n amoona-prod -w
 ```
+./config.sh --url https://github.com/hypnozSarl/amoona-front --token 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
 
 ---
 

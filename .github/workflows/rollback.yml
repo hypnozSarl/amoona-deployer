@@ -38,7 +38,7 @@ env:
 jobs:
   validate-inputs:
     name: Validate Inputs
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       namespace: ${{ steps.validate.outputs.namespace }}
       rollback_type: ${{ steps.validate.outputs.rollback_type }}
@@ -77,7 +77,7 @@ jobs:
 
   rollback-specific-service:
     name: Rollback Specific Service
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: validate-inputs
     if: inputs.rollback_type == 'specific_service'
     environment:
@@ -168,7 +168,7 @@ jobs:
 
   rollback-all-services:
     name: Rollback All Services
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: validate-inputs
     if: inputs.rollback_type == 'all_services'
     environment:
@@ -252,7 +252,7 @@ jobs:
 
   rollback-to-git-revision:
     name: Rollback to Git Revision
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: validate-inputs
     if: inputs.rollback_type == 'git_revision'
     environment:
@@ -335,7 +335,7 @@ jobs:
 
   summary:
     name: Rollback Summary
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [validate-inputs, rollback-specific-service, rollback-all-services, rollback-to-git-revision]
     if: always()
     steps:

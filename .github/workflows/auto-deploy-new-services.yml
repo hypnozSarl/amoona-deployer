@@ -28,7 +28,7 @@ env:
 jobs:
   detect-new-services:
     name: Detect New Services
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       new_services: ${{ steps.detect.outputs.new_services }}
       has_new_services: ${{ steps.detect.outputs.has_new_services }}
@@ -118,7 +118,7 @@ jobs:
 
   validate-services:
     name: Validate New Services
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: detect-new-services
     if: needs.detect-new-services.outputs.has_new_services == 'true'
     strategy:
@@ -196,7 +196,7 @@ jobs:
 
   deploy-services:
     name: Deploy New Services
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [detect-new-services, validate-services]
     if: |
       needs.detect-new-services.outputs.has_new_services == 'true' &&
@@ -320,7 +320,7 @@ jobs:
 
   notify:
     name: Notify
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: [detect-new-services, deploy-services]
     if: always() && needs.detect-new-services.outputs.has_new_services == 'true'
     steps:

@@ -15,7 +15,7 @@ on:
 jobs:
   validate-kustomize:
     name: Validate Kustomize
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout code
@@ -60,7 +60,7 @@ jobs:
 
   validate-yaml:
     name: YAML Lint
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout code
@@ -93,7 +93,7 @@ jobs:
 
   kubeconform:
     name: Kubernetes Schema Validation
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout code
@@ -121,7 +121,7 @@ jobs:
 
   shellcheck:
     name: Shell Scripts Lint
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout code

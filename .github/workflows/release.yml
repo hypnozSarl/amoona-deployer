@@ -8,7 +8,7 @@ on:
 jobs:
   release:
     name: Create Release
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout code
@@ -55,7 +55,7 @@ jobs:
 
   notify:
     name: Notify
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: release
     if: success()
 
