@@ -35,7 +35,7 @@ jobs:
       environment: ${{ steps.set-env.outputs.environment }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -126,7 +126,7 @@ jobs:
         service: ${{ fromJson(needs.detect-new-services.outputs.new_services) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Validate Service Structure
         run: |
@@ -205,7 +205,7 @@ jobs:
       name: ${{ needs.detect-new-services.outputs.environment }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Kustomize
         uses: imranismail/setup-kustomize@v2
