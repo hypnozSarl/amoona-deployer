@@ -43,7 +43,7 @@ jobs:
       environment: ${{ steps.set-env.outputs.environment }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -124,7 +124,7 @@ jobs:
     if: needs.detect-changes.outputs.has_changes == 'true'
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Kustomize
         uses: imranismail/setup-kustomize@v2
@@ -170,7 +170,7 @@ jobs:
       url: ${{ needs.detect-changes.outputs.environment == 'prod' && 'https://grafana.amoona.tech' || 'https://grafana.dev.amoona.tech' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup Kustomize
         uses: imranismail/setup-kustomize@v2
