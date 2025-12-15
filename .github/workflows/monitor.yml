@@ -26,7 +26,7 @@ jobs:
       pvc_status: ${{ steps.pvc.outputs.status }}
     steps:
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
         with:
           version: 'v1.29.0'
 
