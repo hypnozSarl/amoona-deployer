@@ -38,6 +38,9 @@ resources:
   # Ingress (HTTP)
   - ingress.yaml
 
+  # Services exposés en externe (PostgreSQL, Redis, MinIO)
+  - external-services.yaml
+
   # Ingress TLS (HTTPS) - Décommenter après configuration DNS
   # - ingress-tls.yaml
   # - cert-manager.yaml
