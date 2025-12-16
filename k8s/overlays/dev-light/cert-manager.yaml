@@ -45,26 +45,7 @@ spec:
             class: traefik
 ---
 # -----------------------------------------------------------------------------
-# Certificate pour les applications principales (optionnel - créé auto par ingress)
+# Note: Les certificats sont générés automatiquement par les Ingress
+# grâce à l'annotation cert-manager.io/cluster-issuer
+# Le wildcard nécessiterait DNS-01 challenge (non configuré ici)
 # -----------------------------------------------------------------------------
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: amoona-wildcard-cert
-spec:
-  secretName: amoona-wildcard-tls
-  issuerRef:
-    name: letsencrypt-prod
-    kind: ClusterIssuer
-  commonName: "*.amoona.tech"
-  dnsNames:
-    - "amoona.tech"
-    - "*.amoona.tech"
-    - "app.amoona.tech"
-    - "api.amoona.tech"
-    - "grafana.amoona.tech"
-    - "prometheus.amoona.tech"
-    - "minio.amoona.tech"
-    - "s3.amoona.tech"
-    - "registry.amoona.tech"
-    - "argocd.amoona.tech"

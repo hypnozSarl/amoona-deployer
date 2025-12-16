@@ -35,6 +35,9 @@ spec:
         - minio.amoona.tech
         - s3.amoona.tech
       secretName: amoona-storage-tls
+    - hosts:
+        - sonar.amoona.tech
+      secretName: amoona-sonar-tls
   rules:
     # Frontend Application
     - host: app.amoona.tech
@@ -100,6 +103,17 @@ spec:
             backend:
               service:
                 name: minio
+                port:
+                  number: 9000
+    # SonarQube (Code Quality)
+    - host: sonar.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sonarqube
                 port:
                   number: 9000
 ---

@@ -44,9 +44,9 @@ resources:
   # Services exposés en externe (PostgreSQL, Redis, MinIO)
   - external-services.yaml
 
-  # Ingress TLS (HTTPS) - Décommenter après configuration DNS
-  # - ingress-tls.yaml
-  # - cert-manager.yaml
+  # Ingress TLS (HTTPS) avec Let's Encrypt
+  - ingress-tls.yaml
+  - cert-manager.yaml
 
 patches:
   # Secrets
