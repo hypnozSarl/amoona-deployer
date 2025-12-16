@@ -17,5 +17,6 @@ commonLabels:
   environment: dev
 
 images:
-  - name: ghcr.io/hypnozsarl/amoona-front
-    newTag: "7522ffd"
+  # GitLab Container Registry
+  - name: registry.gitlab.com/hypnozsarl/amoona-front
+    newTag: "latest"

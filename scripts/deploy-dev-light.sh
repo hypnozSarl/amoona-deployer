@@ -225,16 +225,21 @@ log_info "Génération des secrets..."
 log_info "Création du namespace amoona-dev..."
 kubectl create namespace amoona-dev --dry-run=client -o yaml | kubectl apply -f -
 
-# Créer le secret pour GHCR si nécessaire
-if ! kubectl get secret ghcr-secret -n amoona-dev &> /dev/null; then
-    log_warning "Le secret ghcr-secret n'existe pas"
+# Créer le secret pour GitLab Container Registry si nécessaire
+if ! kubectl get secret gitlab-registry-secret -n amoona-dev &> /dev/null; then
+    log_warning "Le secret gitlab-registry-secret n'existe pas"
     echo ""
     echo "Créez-le avec:"
-    echo "  kubectl create secret docker-registry ghcr-secret \\"
-    echo "    --docker-server=ghcr.io \\"
-    echo "    --docker-username=YOUR_GITHUB_USERNAME \\"
-    echo "    --docker-password=YOUR_GITHUB_TOKEN \\"
+    echo "  kubectl create secret docker-registry gitlab-registry-secret \\"
+    echo "    --docker-server=registry.gitlab.com \\"
+    echo "    --docker-username=VOTRE_USERNAME_GITLAB \\"
+    echo "    --docker-password=VOTRE_TOKEN_GITLAB \\"
+    echo "    --docker-email=VOTRE_EMAIL \\"
     echo "    -n amoona-dev"
+    echo ""
+    echo "Pour créer un token GitLab:"
+    echo "  1. GitLab → Settings → Access Tokens"
+    echo "  2. Créer un token avec le scope 'read_registry'"
     echo ""
     read -p "Appuyez sur Entrée pour continuer ou Ctrl+C pour annuler..."
 fi
@@ -412,7 +417,7 @@ echo "  ARGOCD - LIVRAISON AUTOMATIQUE"
 echo "=============================================="
 echo ""
 echo "  ArgoCD surveille la branche 'dev' du repository:"
-echo "  https://github.com/hypnozSarl/amoona-deployer.git"
+echo "  https://gitlab.com/hypnozsarl/amoona-deployer.git"
 echo ""
 echo "  Workflow de déploiement automatique:"
 echo "  1. Push sur la branche 'dev'"

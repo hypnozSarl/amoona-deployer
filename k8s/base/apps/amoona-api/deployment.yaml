@@ -30,10 +30,10 @@ spec:
         runAsGroup: 1000
         fsGroup: 1000
       imagePullSecrets:
-        - name: ghcr-secret
+        - name: gitlab-registry-secret
       containers:
         - name: amoona-api
-          image: ghcr.io/hypnozsarl/amoona-api:e271f37
+          image: registry.gitlab.com/hypnozsarl/amoona-api:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

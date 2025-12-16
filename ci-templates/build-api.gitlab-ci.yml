@@ -1,0 +1,139 @@
+# =============================================================================
+# GitLab CI Template pour Amoona API (Spring Boot)
+# =============================================================================
+# Inclure ce template dans le projet amoona-api:
+#
+# include:
+#   - project: 'hypnozsarl/amoona-deployer'
+#     ref: dev
+#     file: '/ci-templates/build-api.gitlab-ci.yml'
+# =============================================================================
+
+stages:
+  - test
+  - build
+  - push
+  - trigger-deploy
+
+variables:
+  REGISTRY: registry.gitlab.com
+  IMAGE_NAME: $CI_REGISTRY_IMAGE
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .m2/repository/
+    - target/
+
+# =============================================================================
+# Stage: Test
+# =============================================================================
+
+test:unit:
+  stage: test
+  image: maven:3.9-eclipse-temurin-21
+  script:
+    - mvn clean test -B
+  artifacts:
+    reports:
+      junit:
+        - target/surefire-reports/TEST-*.xml
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "main"'
+
+test:integration:
+  stage: test
+  image: maven:3.9-eclipse-temurin-21
+  services:
+    - postgres:15
+    - redis:7
+  variables:
+    POSTGRES_DB: amoona_test
+    POSTGRES_USER: test
+    POSTGRES_PASSWORD: test
+    SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/amoona_test
+    SPRING_DATASOURCE_USERNAME: test
+    SPRING_DATASOURCE_PASSWORD: test
+    SPRING_DATA_REDIS_HOST: redis
+  script:
+    - mvn verify -B -DskipUnitTests
+  allow_failure: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "main"'
+
+# =============================================================================
+# Stage: Build
+# =============================================================================
+
+build:jar:
+  stage: build
+  image: maven:3.9-eclipse-temurin-21
+  script:
+    - mvn clean package -DskipTests -B
+  artifacts:
+    paths:
+      - target/*.jar
+    expire_in: 1 hour
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "main"'
+
+# =============================================================================
+# Stage: Push Docker Image
+# =============================================================================
+
+push:docker:
+  stage: push
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  dependencies:
+    - build:jar
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - |
+      docker build \
+        --cache-from $IMAGE_NAME:latest \
+        --tag $IMAGE_NAME:$CI_COMMIT_SHORT_SHA \
+        --tag $IMAGE_NAME:latest \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        .
+      docker push $IMAGE_NAME:$CI_COMMIT_SHORT_SHA
+      docker push $IMAGE_NAME:latest
+    - echo "IMAGE_TAG=$CI_COMMIT_SHORT_SHA" >> deploy.env
+  artifacts:
+    reports:
+      dotenv: deploy.env
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "main"'
+
+# =============================================================================
+# Stage: Trigger Deployment
+# =============================================================================
+
+trigger:deploy:
+  stage: trigger-deploy
+  image: alpine:latest
+  dependencies:
+    - push:docker
+  before_script:
+    - apk add --no-cache curl git
+  script:
+    - |
+      echo "Triggering deployment with image tag: $IMAGE_TAG"
+
+      # Option 1: Trigger le pipeline du deployer
+      curl --request POST \
+        --form "token=$CI_JOB_TOKEN" \
+        --form "ref=dev" \
+        --form "variables[API_NEW_TAG]=$IMAGE_TAG" \
+        "https://gitlab.com/api/v4/projects/hypnozsarl%2Famoona-deployer/trigger/pipeline" || true
+
+      echo "Deployment triggered. ArgoCD will sync automatically."
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "main"'

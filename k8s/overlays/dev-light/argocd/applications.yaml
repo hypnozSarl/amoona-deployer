@@ -9,7 +9,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/hypnozSarl/amoona-deployer.git
+    repoURL: https://gitlab.com/hypnozsarl/amoona-deployer.git
     targetRevision: dev  # Branche dev
     path: k8s/overlays/dev-light
   destination:
@@ -42,7 +42,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/hypnozSarl/amoona-deployer.git
+    repoURL: https://gitlab.com/hypnozsarl/amoona-deployer.git
     targetRevision: dev
     path: k8s/overlays/dev-light/apps/amoona-api
   destination:
@@ -72,7 +72,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/hypnozSarl/amoona-deployer.git
+    repoURL: https://gitlab.com/hypnozsarl/amoona-deployer.git
     targetRevision: dev
     path: k8s/overlays/dev-light/apps/amoona-front
   destination:

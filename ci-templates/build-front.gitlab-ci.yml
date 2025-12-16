@@ -1,0 +1,141 @@
+# =============================================================================
+# GitLab CI Template pour Amoona Frontend (Angular)
+# =============================================================================
+# Inclure ce template dans le projet amoona-front:
+#
+# include:
+#   - project: 'hypnozsarl/amoona-deployer'
+#     ref: dev
+#     file: '/ci-templates/build-front.gitlab-ci.yml'
+# =============================================================================
+
+stages:
+  - test
+  - build
+  - push
+  - trigger-deploy
+
+variables:
+  REGISTRY: registry.gitlab.com
+  IMAGE_NAME: $CI_REGISTRY_IMAGE
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - node_modules/
+    - .npm/
+
+# =============================================================================
+# Stage: Test
+# =============================================================================
+
+test:lint:
+  stage: test
+  image: node:20-alpine
+  before_script:
+    - npm ci --cache .npm --prefer-offline
+  script:
+    - npm run lint
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "main"'
+
+test:unit:
+  stage: test
+  image: node:20-alpine
+  before_script:
+    - apk add --no-cache chromium
+    - export CHROME_BIN=/usr/bin/chromium-browser
+    - npm ci --cache .npm --prefer-offline
+  script:
+    - npm run test -- --no-watch --no-progress --browsers=ChromeHeadless
+  artifacts:
+    reports:
+      junit:
+        - coverage/junit.xml
+  allow_failure: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "main"'
+
+# =============================================================================
+# Stage: Build
+# =============================================================================
+
+build:angular:
+  stage: build
+  image: node:20-alpine
+  before_script:
+    - npm ci --cache .npm --prefer-offline
+  script:
+    - |
+      if [ "$CI_COMMIT_BRANCH" == "main" ]; then
+        npm run build -- --configuration=production
+      else
+        npm run build -- --configuration=development
+      fi
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 hour
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "main"'
+
+# =============================================================================
+# Stage: Push Docker Image
+# =============================================================================
+
+push:docker:
+  stage: push
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  dependencies:
+    - build:angular
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - |
+      docker build \
+        --cache-from $IMAGE_NAME:latest \
+        --tag $IMAGE_NAME:$CI_COMMIT_SHORT_SHA \
+        --tag $IMAGE_NAME:latest \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        .
+      docker push $IMAGE_NAME:$CI_COMMIT_SHORT_SHA
+      docker push $IMAGE_NAME:latest
+    - echo "IMAGE_TAG=$CI_COMMIT_SHORT_SHA" >> deploy.env
+  artifacts:
+    reports:
+      dotenv: deploy.env
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "main"'
+
+# =============================================================================
+# Stage: Trigger Deployment
+# =============================================================================
+
+trigger:deploy:
+  stage: trigger-deploy
+  image: alpine:latest
+  dependencies:
+    - push:docker
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - |
+      echo "Triggering deployment with image tag: $IMAGE_TAG"
+
+      # Trigger le pipeline du deployer
+      curl --request POST \
+        --form "token=$CI_JOB_TOKEN" \
+        --form "ref=dev" \
+        --form "variables[FRONT_NEW_TAG]=$IMAGE_TAG" \
+        "https://gitlab.com/api/v4/projects/hypnozsarl%2Famoona-deployer/trigger/pipeline" || true
+
+      echo "Deployment triggered. ArgoCD will sync automatically."
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
