@@ -103,59 +103,7 @@ spec:
               cpu: "300m"
               memory: "256Mi"
 ---
-# Harbor Core - Registry Docker
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: harbor-core
-spec:
-  template:
-    spec:
-      containers:
-        - name: harbor-core
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "256Mi"
-            limits:
-              cpu: "500m"
-              memory: "512Mi"
----
-# Harbor Registry
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: harbor-registry
-spec:
-  template:
-    spec:
-      containers:
-        - name: registry
-          resources:
-            requests:
-              cpu: "100m"
-              memory: "256Mi"
-            limits:
-              cpu: "500m"
-              memory: "512Mi"
----
-# Harbor Portal (UI)
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: harbor-portal
-spec:
-  template:
-    spec:
-      containers:
-        - name: portal
-          resources:
-            requests:
-              cpu: "50m"
-              memory: "64Mi"
-            limits:
-              cpu: "200m"
-              memory: "128Mi"
+# Harbor supprimé - utilise GitLab Container Registry (registry.gitlab.com)
 ---
 # API Backend
 apiVersion: apps/v1
@@ -199,5 +147,4 @@ spec:
               memory: "128Mi"
 # Note: Le stockage est configuré dans les fichiers base
 # MinIO: 20Gi (k8s/base/infra/minio/pvc.yaml)
-# Harbor: 50Gi (k8s/base/infra/harbor/pvc.yaml)
 # PostgreSQL: Défini dans le volumeClaimTemplate du StatefulSet
