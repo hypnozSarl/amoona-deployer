@@ -1,0 +1,70 @@
+# =============================================================================
+# CERT-MANAGER - Configuration Let's Encrypt
+# =============================================================================
+# Génère automatiquement des certificats SSL gratuits via Let's Encrypt
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# ClusterIssuer Production (certificats valides)
+# -----------------------------------------------------------------------------
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    # Serveur Let's Encrypt Production
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # Email pour les notifications (expiration, etc.)
+    email: admin@amoona.tech  # MODIFIER AVEC VOTRE EMAIL
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    solvers:
+      # HTTP-01 challenge via Traefik
+      - http01:
+          ingress:
+            class: traefik
+---
+# -----------------------------------------------------------------------------
+# ClusterIssuer Staging (pour les tests - certificats non valides)
+# -----------------------------------------------------------------------------
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging
+spec:
+  acme:
+    # Serveur Let's Encrypt Staging (limites plus élevées, certificats de test)
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    email: admin@amoona.tech  # MODIFIER AVEC VOTRE EMAIL
+    privateKeySecretRef:
+      name: letsencrypt-staging-account-key
+    solvers:
+      - http01:
+          ingress:
+            class: traefik
+---
+# -----------------------------------------------------------------------------
+# Certificate pour les applications principales (optionnel - créé auto par ingress)
+# -----------------------------------------------------------------------------
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: amoona-wildcard-cert
+spec:
+  secretName: amoona-wildcard-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  commonName: "*.amoona.tech"
+  dnsNames:
+    - "amoona.tech"
+    - "*.amoona.tech"
+    - "app.amoona.tech"
+    - "api.amoona.tech"
+    - "grafana.amoona.tech"
+    - "prometheus.amoona.tech"
+    - "minio.amoona.tech"
+    - "s3.amoona.tech"
+    - "registry.amoona.tech"
+    - "argocd.amoona.tech"

@@ -1,0 +1,47 @@
+# =============================================================================
+# CONFIGURATION DNS - Amoona Dev Light
+# =============================================================================
+# Ce fichier centralise la configuration des domaines
+# Modifier les valeurs ci-dessous selon votre configuration DNS
+# =============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dns-config
+  labels:
+    app: amoona
+    component: dns-config
+data:
+  # =============================================================================
+  # DOMAINE PRINCIPAL
+  # =============================================================================
+  # Option 1: Domaine personnalisé (ex: amoona.tech, dev.amoona.com)
+  # Option 2: Utiliser nip.io pour DNS automatique (ex: 195.35.2.238.nip.io)
+  # =============================================================================
+
+  BASE_DOMAIN: "amoona.tech"           # Votre domaine principal
+  # BASE_DOMAIN: "195.35.2.238.nip.io" # Alternative sans DNS
+
+  # =============================================================================
+  # SOUS-DOMAINES
+  # =============================================================================
+  FRONTEND_HOST: "app.amoona.tech"
+  API_HOST: "api.amoona.tech"
+  ARGOCD_HOST: "argocd.amoona.tech"
+  HARBOR_HOST: "registry.amoona.tech"
+  GRAFANA_HOST: "grafana.amoona.tech"
+  PROMETHEUS_HOST: "prometheus.amoona.tech"
+  MINIO_HOST: "minio.amoona.tech"
+  MINIO_S3_HOST: "s3.amoona.tech"
+
+  # =============================================================================
+  # CONFIGURATION SSL/TLS
+  # =============================================================================
+  ENABLE_TLS: "true"                   # true pour HTTPS, false pour HTTP
+  CERT_ISSUER: "letsencrypt-prod"      # letsencrypt-prod ou letsencrypt-staging
+  ADMIN_EMAIL: "admin@amoona.tech"     # Email pour Let's Encrypt
+
+  # =============================================================================
+  # IP DU VPS (pour référence)
+  # =============================================================================
+  VPS_IP: "195.35.2.238"

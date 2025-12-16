@@ -1,0 +1,23 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: amoona-front-dev-light
+
+namespace: amoona-dev
+
+resources:
+  - ../../../../base/apps/amoona-front
+
+patches:
+  - path: deployment-patch.yaml
+
+labels:
+  - pairs:
+      environment: dev
+      config: light
+    includeSelectors: false
+
+images:
+  - name: ghcr.io/hypnozsarl/amoona-front
+    newTag: "b27f5b0"

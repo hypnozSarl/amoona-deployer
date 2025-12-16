@@ -1,0 +1,92 @@
+# Application ArgoCD pour l'infrastructure dev-light
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: amoona-infra-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/hypnozSarl/amoona-deployer.git
+    targetRevision: dev  # Branche dev
+    path: k8s/overlays/dev-light
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: amoona-dev
+  syncPolicy:
+    automated:
+      prune: true       # Supprime les ressources obsolètes
+      selfHeal: true    # Corrige les dérives de configuration
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+---
+# Application ArgoCD pour l'API (déploiement séparé pour les mises à jour fréquentes)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: amoona-api-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/hypnozSarl/amoona-deployer.git
+    targetRevision: dev
+    path: k8s/overlays/dev-light/apps/amoona-api
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: amoona-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 1m
+---
+# Application ArgoCD pour le Frontend
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: amoona-front-dev
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/hypnozSarl/amoona-deployer.git
+    targetRevision: dev
+    path: k8s/overlays/dev-light/apps/amoona-front
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: amoona-dev
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=false
+    retry:
+      limit: 3
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 1m

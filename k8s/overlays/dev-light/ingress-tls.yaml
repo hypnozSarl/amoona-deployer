@@ -1,0 +1,189 @@
+# =============================================================================
+# INGRESS AVEC TLS/SSL - Configuration Production-Ready
+# =============================================================================
+# Ce fichier configure l'accès HTTPS à tous les services
+# Utilise cert-manager pour les certificats Let's Encrypt
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# INGRESS PRINCIPAL - Applications et Services
+# -----------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: amoona-main-ingress
+  annotations:
+    # Cert-manager pour TLS automatique
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Traefik configuration
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    # Redirection HTTP -> HTTPS
+    traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - app.amoona.tech
+        - api.amoona.tech
+      secretName: amoona-app-tls
+    - hosts:
+        - grafana.amoona.tech
+        - prometheus.amoona.tech
+      secretName: amoona-monitoring-tls
+    - hosts:
+        - minio.amoona.tech
+        - s3.amoona.tech
+      secretName: amoona-storage-tls
+  rules:
+    # Frontend Application
+    - host: app.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: amoona-front
+                port:
+                  number: 80
+    # API Backend
+    - host: api.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: amoona-api
+                port:
+                  number: 80
+    # Grafana
+    - host: grafana.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
+    # Prometheus
+    - host: prometheus.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: prometheus
+                port:
+                  number: 9090
+    # MinIO Console
+    - host: minio.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  number: 9001
+    # MinIO S3 API
+    - host: s3.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  number: 9000
+---
+# -----------------------------------------------------------------------------
+# INGRESS HARBOR - Registry Docker
+# -----------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: harbor-ingress
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    # Configuration spéciale pour les uploads Docker (images volumineuses)
+    traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - registry.amoona.tech
+      secretName: harbor-tls
+  rules:
+    - host: registry.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: harbor
+                port:
+                  number: 80
+          - path: /v2
+            pathType: Prefix
+            backend:
+              service:
+                name: harbor-registry
+                port:
+                  number: 5000
+---
+# -----------------------------------------------------------------------------
+# INGRESS ARGOCD
+# -----------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-ingress
+  namespace: argocd
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    # ArgoCD utilise gRPC, configuration spéciale
+    traefik.ingress.kubernetes.io/router.middlewares: default-redirect-https@kubernetescrd
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - argocd.amoona.tech
+      secretName: argocd-tls
+  rules:
+    - host: argocd.amoona.tech
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80
+---
+# -----------------------------------------------------------------------------
+# MIDDLEWARE - Redirection HTTP vers HTTPS
+# -----------------------------------------------------------------------------
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: redirect-https
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true

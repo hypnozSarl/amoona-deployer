@@ -1,0 +1,74 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: harbor-core
+  labels:
+    app: harbor
+    component: core
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: harbor
+    component: core
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: harbor-registry
+  labels:
+    app: harbor
+    component: registry
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5000
+      targetPort: 5000
+      protocol: TCP
+      name: http
+    - port: 5001
+      targetPort: 5001
+      protocol: TCP
+      name: metrics
+  selector:
+    app: harbor
+    component: registry
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: harbor-portal
+  labels:
+    app: harbor
+    component: portal
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: harbor
+    component: portal
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: harbor
+  labels:
+    app: harbor
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: harbor
+    component: portal

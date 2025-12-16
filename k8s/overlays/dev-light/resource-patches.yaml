@@ -1,0 +1,203 @@
+# =============================================================================
+# CONFIGURATION RESSOURCES OPTIMISÉE POUR VPS 4 CPU / 16 Go RAM
+# =============================================================================
+# Total estimé: ~3 CPU / ~8 Go RAM (laisse de la marge pour le système)
+# =============================================================================
+
+# PostgreSQL - Base de données principale
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  template:
+    spec:
+      containers:
+        - name: postgres
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          env:
+            - name: POSTGRES_MAX_CONNECTIONS
+              value: "50"
+---
+# Redis - Cache (très léger)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+spec:
+  template:
+    spec:
+      containers:
+        - name: redis
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"
+---
+# MinIO - Stockage S3
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+spec:
+  template:
+    spec:
+      containers:
+        - name: minio
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+# Prometheus - Monitoring
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+spec:
+  template:
+    spec:
+      containers:
+        - name: prometheus
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          args:
+            - '--config.file=/etc/prometheus/prometheus.yml'
+            - '--storage.tsdb.path=/prometheus'
+            - '--storage.tsdb.retention.time=7d'  # Réduit à 7 jours
+            - '--storage.tsdb.retention.size=5GB'
+            - '--web.enable-lifecycle'
+---
+# Grafana - Dashboards
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+spec:
+  template:
+    spec:
+      containers:
+        - name: grafana
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
+---
+# Harbor Core - Registry Docker
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: harbor-core
+spec:
+  template:
+    spec:
+      containers:
+        - name: harbor-core
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+# Harbor Registry
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: harbor-registry
+spec:
+  template:
+    spec:
+      containers:
+        - name: registry
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+---
+# Harbor Portal (UI)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: harbor-portal
+spec:
+  template:
+    spec:
+      containers:
+        - name: portal
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+---
+# API Backend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: amoona-api
+spec:
+  replicas: 1  # Une seule réplique en dev
+  template:
+    spec:
+      containers:
+        - name: amoona-api
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          env:
+            - name: JAVA_OPTS
+              value: "-Xms256m -Xmx512m -XX:+UseG1GC"
+---
+# Frontend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: amoona-front
+spec:
+  replicas: 1  # Une seule réplique en dev
+  template:
+    spec:
+      containers:
+        - name: amoona-front
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
+# Note: Le stockage est configuré dans les fichiers base
+# MinIO: 20Gi (k8s/base/infra/minio/pvc.yaml)
+# Harbor: 50Gi (k8s/base/infra/harbor/pvc.yaml)
+# PostgreSQL: Défini dans le volumeClaimTemplate du StatefulSet
