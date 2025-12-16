@@ -79,4 +79,14 @@ spec:
                 name: minio
                 port:
                   number: 9000
-    # Note: Harbor supprimé - utiliser GitLab Container Registry (registry.gitlab.com)
+    # SonarQube (Code Quality)
+    - host: sonar.195.35.2.238.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sonarqube
+                port:
+                  number: 9000

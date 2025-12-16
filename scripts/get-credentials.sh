@@ -92,6 +92,22 @@ echo -e "  ${BLUE}User:${NC}     $(get_secret grafana-secret GF_SECURITY_ADMIN_U
 echo -e "  ${BLUE}Password:${NC} ${YELLOW}$(get_secret grafana-secret GF_SECURITY_ADMIN_PASSWORD)${NC}"
 
 # =============================================================================
+# SonarQube
+# =============================================================================
+echo ""
+echo -e "${CYAN}┌─────────────────────────────────────────────┐${NC}"
+echo -e "${CYAN}│${NC}  ${BOLD}SonarQube${NC}                                  ${CYAN}│${NC}"
+echo -e "${CYAN}└─────────────────────────────────────────────┘${NC}"
+echo -e "  ${BLUE}URL:${NC}      http://sonar.$VPS_IP.nip.io"
+echo -e "  ${BLUE}User:${NC}     admin"
+echo -e "  ${BLUE}Password:${NC} ${YELLOW}admin${NC} (par défaut, à changer)"
+echo ""
+echo -e "  ${GREEN}Configuration DB:${NC}"
+echo -e "  ${BLUE}JDBC URL:${NC}  $(get_secret sonarqube-secret SONAR_JDBC_URL)"
+echo -e "  ${BLUE}DB User:${NC}   $(get_secret sonarqube-secret SONAR_JDBC_USERNAME)"
+echo -e "  ${BLUE}DB Pass:${NC}   ${YELLOW}$(get_secret sonarqube-secret SONAR_JDBC_PASSWORD)${NC}"
+
+# =============================================================================
 # ArgoCD
 # =============================================================================
 echo ""
@@ -128,6 +144,7 @@ echo -e "    API:         http://api.$VPS_IP.nip.io"
 echo ""
 echo -e "  ${GREEN}DevOps:${NC}"
 echo -e "    ArgoCD:      http://$VPS_IP:30080"
+echo -e "    SonarQube:   http://sonar.$VPS_IP.nip.io"
 echo -e "    Grafana:     http://grafana.$VPS_IP.nip.io"
 echo -e "    Prometheus:  http://prometheus.$VPS_IP.nip.io"
 echo -e "    MinIO:       http://minio.$VPS_IP.nip.io"

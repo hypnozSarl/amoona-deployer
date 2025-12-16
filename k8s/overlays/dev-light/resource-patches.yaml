@@ -103,7 +103,30 @@ spec:
               cpu: "300m"
               memory: "256Mi"
 ---
-# Harbor supprimé - utilise GitLab Container Registry (registry.gitlab.com)
+# SonarQube - Analyse de code (ressources réduites pour dev)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sonarqube
+spec:
+  template:
+    spec:
+      containers:
+        - name: sonarqube
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "1Gi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          env:
+            - name: SONAR_WEB_JAVAOPTS
+              value: "-Xmx512m -Xms128m"
+            - name: SONAR_CE_JAVAOPTS
+              value: "-Xmx512m -Xms128m"
+            - name: SONAR_SEARCH_JAVAOPTS
+              value: "-Xmx512m -Xms512m"
 ---
 # API Backend
 apiVersion: apps/v1

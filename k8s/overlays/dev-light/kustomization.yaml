@@ -31,6 +31,9 @@ resources:
   - ../../base/monitoring/prometheus
   - ../../base/monitoring/grafana
 
+  # DevTools
+  - ../../base/devtools/sonarqube
+
   # Applications
   - apps/amoona-api
   - apps/amoona-front
