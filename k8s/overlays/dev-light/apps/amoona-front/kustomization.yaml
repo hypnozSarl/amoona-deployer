@@ -19,5 +19,6 @@ labels:
     includeSelectors: false
 
 images:
-  - name: ghcr.io/hypnozsarl/amoona-front
-    newTag: "b27f5b0"
+  # GitLab Container Registry
+  - name: registry.gitlab.com/hypnozsarl/amoona-front
+    newTag: "latest"

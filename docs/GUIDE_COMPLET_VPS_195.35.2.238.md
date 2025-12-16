@@ -160,18 +160,21 @@ cd amoona-deployer
 git checkout dev
 ```
 
-## 3.2 Créer le Secret GHCR (GitHub Container Registry)
+## 3.2 Créer le Secret pour GitLab Container Registry
 
 ```bash
 # Créer le namespace
 kubectl create namespace amoona-dev
 
-# Créer le secret pour accéder aux images Docker privées
-kubectl create secret docker-registry ghcr-secret \
-    --docker-server=ghcr.io \
-    --docker-username=VOTRE_USERNAME_GITHUB \
-    --docker-password=VOTRE_TOKEN_GITHUB \
+# Créer le secret pour accéder aux images Docker privées sur GitLab
+kubectl create secret docker-registry gitlab-registry-secret \
+    --docker-server=registry.gitlab.com \
+    --docker-username=mbsdev \
+    --docker-password=glpat-bLwMr8VZJkOCGY1jHgg58W86MQp1OjJzY2phCw.01.121j53mc1 \
     -n amoona-dev
+
+# Note: Le token GitLab doit avoir les droits "read_registry" et "write_registry"
+# Créer un token sur: GitLab > Settings > Access Tokens
 ```
 
 ## 3.3 Générer les Secrets
@@ -602,8 +605,8 @@ Dans **GitLab > Settings > CI/CD > Variables**:
 | `HARBOR_USER` | admin | No | No |
 | `HARBOR_PASSWORD` | (mot de passe Harbor) | Yes | Yes |
 | `HARBOR_PROJECT` | amoona | No | No |
-| `GITHUB_USER` | (votre username GitHub) | No | No |
-| `GITHUB_TOKEN` | (token GitHub) | Yes | Yes |
+| `GITLAB_USER` | (votre username GitLab) | No | No |
+| `GITLAB_TOKEN` | (token GitLab avec read_registry, write_registry) | Yes | Yes |
 
 ## 8.2 Exemple Complet .gitlab-ci.yml
 
@@ -660,8 +663,8 @@ deploy:
   before_script:
     - apk add --no-cache sed
   script:
-    # Cloner le repo de déploiement
-    - git clone https://$GITHUB_USER:$GITHUB_TOKEN@github.com/hypnozSarl/amoona-deployer.git
+    # Cloner le repo de déploiement (depuis GitLab)
+    - git clone https://$GITLAB_USER:$GITLAB_TOKEN@gitlab.com/hypnozsarl/amoona-deployer.git
     - cd amoona-deployer
     - git checkout dev
 
@@ -865,10 +868,10 @@ mkdir -p ~/.kube && cp /etc/rancher/k3s/k3s.yaml ~/.kube/config
 cd ~ && git clone https://github.com/hypnozSarl/amoona-deployer.git
 cd amoona-deployer && git checkout dev
 
-# 6. Secret GHCR
+# 6. Secret GitLab Registry
 kubectl create namespace amoona-dev
-kubectl create secret docker-registry ghcr-secret \
-  --docker-server=ghcr.io \
+kubectl create secret docker-registry gitlab-registry-secret \
+  --docker-server=registry.gitlab.com \
   --docker-username=VOTRE_USER \
   --docker-password=VOTRE_TOKEN \
   -n amoona-dev
