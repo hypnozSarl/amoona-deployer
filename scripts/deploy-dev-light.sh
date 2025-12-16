@@ -244,9 +244,6 @@ if ! kubectl get secret gitlab-registry-secret -n amoona-dev &> /dev/null; then
     read -p "Appuyez sur Entrée pour continuer ou Ctrl+C pour annuler..."
 fi
 
-# Créer la base de données Harbor dans PostgreSQL
-log_info "Préparation de la base de données Harbor..."
-
 # Déployer l'infrastructure
 log_info "Déploiement de l'infrastructure..."
 kubectl apply -k "$PROJECT_ROOT/k8s/overlays/dev-light"
@@ -257,15 +254,7 @@ kubectl wait --for=condition=ready pod -l app=postgres -n amoona-dev --timeout=3
     log_warning "PostgreSQL n'est pas prêt dans le délai imparti"
 }
 
-# Créer la base de données Harbor
-log_info "Création de la base de données Harbor..."
-kubectl exec -it statefulset/postgres -n amoona-dev -- psql -U amoona -d postgres -c "CREATE DATABASE harbor OWNER amoona;" 2>/dev/null || {
-    log_info "La base de données harbor existe peut-être déjà"
-}
-kubectl exec -it statefulset/postgres -n amoona-dev -- psql -U amoona -d postgres -c "CREATE USER harbor WITH PASSWORD 'harbor_db_password';" 2>/dev/null || true
-kubectl exec -it statefulset/postgres -n amoona-dev -- psql -U amoona -d postgres -c "GRANT ALL PRIVILEGES ON DATABASE harbor TO harbor;" 2>/dev/null || true
-
-# Attendre les autres services
+# Attendre les services d'infrastructure
 log_info "Attente des services..."
 
 for deploy in redis minio grafana prometheus; do
@@ -275,13 +264,7 @@ for deploy in redis minio grafana prometheus; do
     }
 done
 
-# Attendre Harbor
-for deploy in harbor-core harbor-registry harbor-portal; do
-    log_info "Attente de $deploy..."
-    kubectl wait --for=condition=available deployment/$deploy -n amoona-dev --timeout=180s || {
-        log_warning "$deploy n'est pas prêt"
-    }
-done
+# Note: Harbor supprimé - utiliser GitLab Container Registry (registry.gitlab.com)
 
 # Afficher le statut
 echo ""
@@ -383,10 +366,12 @@ echo "                 ou http://$VPS_IP:30080"
 echo "                 User: admin"
 echo "                 Pass: $ARGOCD_PASSWORD"
 echo ""
-echo "    Harbor:      http://registry.$DOMAIN"
 echo "    Grafana:     http://grafana.$DOMAIN"
 echo "    Prometheus:  http://prometheus.$DOMAIN"
 echo "    MinIO:       http://minio.$DOMAIN"
+echo ""
+echo "  Registry Docker:"
+echo "    GitLab:      registry.gitlab.com/hypnozsarl/"
 echo ""
 echo "=============================================="
 echo "  CONFIGURATION DNS REQUISE"
@@ -400,7 +385,6 @@ echo "    A      @           $VPS_IP"
 echo "    A      app         $VPS_IP"
 echo "    A      api         $VPS_IP"
 echo "    A      argocd      $VPS_IP"
-echo "    A      registry    $VPS_IP"
 echo "    A      grafana     $VPS_IP"
 echo "    A      prometheus  $VPS_IP"
 echo "    A      minio       $VPS_IP"
@@ -428,18 +412,20 @@ echo "=============================================="
 echo "  CONFIGURATION GITLAB CI/CD"
 echo "=============================================="
 echo ""
-echo "  Pour pousser des images vers Harbor:"
+echo "  Les images Docker sont stockées sur GitLab Container Registry:"
+echo "    registry.gitlab.com/hypnozsarl/amoona-api"
+echo "    registry.gitlab.com/hypnozsarl/amoona-front"
 echo ""
-echo "  1. Configurer Docker pour Harbor:"
-echo "     {\"insecure-registries\": [\"registry.$DOMAIN\"]}"
+echo "  Variables CI/CD requises dans GitLab:"
+echo "    CI_REGISTRY_USER (automatique)"
+echo "    CI_REGISTRY_PASSWORD (automatique)"
 echo ""
-echo "  2. Login:"
-echo "     docker login registry.$DOMAIN -u admin"
-echo ""
-echo "  3. Variables GitLab CI/CD:"
-echo "     HARBOR_URL=registry.$DOMAIN"
-echo "     HARBOR_USER=admin"
-echo "     HARBOR_PASSWORD=(mot de passe Harbor)"
+echo "  Le secret gitlab-registry-secret doit être créé:"
+echo "    kubectl create secret docker-registry gitlab-registry-secret \\"
+echo "      --docker-server=registry.gitlab.com \\"
+echo "      --docker-username=VOTRE_USERNAME \\"
+echo "      --docker-password=VOTRE_TOKEN_GITLAB \\"
+echo "      -n amoona-dev"
 echo ""
 echo "=============================================="
 echo ""

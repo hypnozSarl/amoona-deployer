@@ -79,21 +79,4 @@ spec:
                 name: minio
                 port:
                   number: 9000
-    # Harbor Registry (Docker images)
-    - host: registry.195.35.2.238.nip.io
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: harbor
-                port:
-                  number: 80
-          - path: /v2
-            pathType: Prefix
-            backend:
-              service:
-                name: harbor-registry
-                port:
-                  number: 5000
+    # Note: Harbor supprimé - utiliser GitLab Container Registry (registry.gitlab.com)

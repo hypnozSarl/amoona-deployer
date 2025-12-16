@@ -6,7 +6,7 @@ kind: Kustomization
 # =============================================================================
 # - Sans ELK Stack (Elasticsearch, Logstash, Kibana)
 # - Sans SonarQube
-# - Avec Harbor (Registry Docker)
+# - Sans Harbor (utilise GitLab Container Registry externe)
 # - Avec ArgoCD (GitOps)
 # - Ressources minimales
 # - Support DNS personnalisé + TLS/SSL
@@ -24,7 +24,8 @@ resources:
   - ../../base/infra/postgres
   - ../../base/infra/redis
   - ../../base/infra/minio
-  - ../../base/infra/harbor
+  # Harbor supprimé - utilise GitLab Container Registry (registry.gitlab.com)
+  # - ../../base/infra/harbor
 
   # Monitoring léger
   - ../../base/monitoring/prometheus
