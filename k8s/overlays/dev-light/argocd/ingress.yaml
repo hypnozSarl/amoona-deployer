@@ -1,5 +1,5 @@
-# Ingress pour ArgoCD
-# Accès: http://argocd.195.35.2.238.nip.io ou http://195.35.2.238:30443
+# Ingress HTTP pour ArgoCD (nip.io)
+# Accès: http://argocd.195.35.2.238.nip.io
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -7,12 +7,39 @@ metadata:
   namespace: argocd
   annotations:
     traefik.ingress.kubernetes.io/router.entrypoints: web
-    # Pour HTTPS, décommenter:
-    # cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   ingressClassName: traefik
   rules:
     - host: argocd.195.35.2.238.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: argocd-server
+                port:
+                  number: 80
+---
+# Ingress HTTPS pour ArgoCD (amoona.tech)
+# Accès: https://argocd.amoona.tech
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: argocd-ingress-tls
+  namespace: argocd
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+spec:
+  ingressClassName: traefik
+  tls:
+    - hosts:
+        - argocd.amoona.tech
+      secretName: argocd-tls
+  rules:
+    - host: argocd.amoona.tech
       http:
         paths:
           - path: /

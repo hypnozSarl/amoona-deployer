@@ -170,7 +170,7 @@ kubectl create namespace amoona-dev
 kubectl create secret docker-registry gitlab-registry-secret \
     --docker-server=registry.gitlab.com \
     --docker-username=mbsdev \
-    --docker-password=glpat-bLwMr8VZJkOCGY1jHgg58W86MQp1OjJzY2phCw.01.121j53mc1 \
+    --docker-password=glpat-kI3Kez7Osx96eBDE9qyZ4G86MQp1OjJzY2phCw.01.1202fnmr7 \
     -n amoona-dev
 
 # Note: Le token GitLab doit avoir les droits "read_registry" et "write_registry"
