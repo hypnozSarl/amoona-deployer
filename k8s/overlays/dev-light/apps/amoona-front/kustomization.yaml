@@ -2,19 +2,21 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 metadata:
-  name: amoona-front-dev
+  name: amoona-front-dev-light
 
 namespace: amoona-dev
 
 resources:
   - ../../../../base/apps/amoona-front
-  - ingress.yaml
 
 patches:
-  - path: replicas-patch.yaml
+  - path: deployment-patch.yaml
 
-commonLabels:
-  environment: dev
+labels:
+  - pairs:
+      environment: dev
+      config: light
+    includeSelectors: false
 
 images:
   # GitLab Container Registry

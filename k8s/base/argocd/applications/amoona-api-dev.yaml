@@ -11,7 +11,7 @@ metadata:
 spec:
   project: default
   source:
-    repoURL: https://github.com/hypnozSarl/amoona-deployer.git
+    repoURL: https://gitlab.com/hypnozsarl/amoona-deployer.git
     targetRevision: main
     path: k8s/overlays/dev/apps/amoona-api
   destination:

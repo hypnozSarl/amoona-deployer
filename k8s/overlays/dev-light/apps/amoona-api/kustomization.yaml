@@ -2,28 +2,26 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 metadata:
-  name: amoona-api-prod
+  name: amoona-api-dev-light
 
-namespace: amoona-prod
+namespace: amoona-dev
 
 resources:
   - ../../../../base/apps/amoona-api
-  - ingress.yaml
   - secrets.yaml
 
 patches:
-  - path: replicas-patch.yaml
-  - path: resources-patch.yaml
-  # Uncomment below to use Vault for secrets instead of Kubernetes Secrets
-  # - path: vault-patch.yaml
+  - path: deployment-patch.yaml
 
 labels:
   - pairs:
-      environment: prod
+      environment: dev
+      config: light
     includeSelectors: false
 
 images:
   # GitLab Container Registry
+  # Format: registry.gitlab.com/GROUP/PROJECT/IMAGE:TAG
   - name: registry.gitlab.com/hypnozsarl/amoona-api
     newTag: "latest"
 
@@ -31,4 +29,6 @@ configMapGenerator:
   - name: amoona-api-config
     behavior: merge
     literals:
-      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_PROFILES_ACTIVE=dev
+      # Pas de Logstash dans la config light
+      - LOGGING_LEVEL_ROOT=INFO

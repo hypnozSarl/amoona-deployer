@@ -31,7 +31,7 @@ spec:
         fsGroup: 101
       containers:
         - name: amoona-front
-          image: ghcr.io/hypnozsarl/amoona-front:b27f5b0
+          image: registry.gitlab.com/mbsdev/amoona-front:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
@@ -81,7 +81,7 @@ spec:
         - name: var-cache-nginx
           emptyDir: {}
       imagePullSecrets:
-        - name: ghcr-secret
+        - name: gitlab-registry-secret
       affinity:
         podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:

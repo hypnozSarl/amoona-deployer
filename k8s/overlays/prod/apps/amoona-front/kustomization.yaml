@@ -17,5 +17,6 @@ commonLabels:
   environment: prod
 
 images:
-  - name: ghcr.io/hypnozsarl/amoona-front
-    newTag: latest
+  # GitLab Container Registry
+  - name: registry.gitlab.com/mbsdev/amoona-front
+    newTag: "latest"

@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: amoona-api
+spec:
+  replicas: 1
+  template:
+    spec:
+      # Utiliser GitLab Container Registry
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      containers:
+        - name: amoona-api
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "512Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1Gi"
+          env:
+            - name: JAVA_OPTS
+              value: "-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=100"
+            # Configuration sans ELK
+            - name: LOGGING_LOGSTASH_ENABLED
+              value: "false"

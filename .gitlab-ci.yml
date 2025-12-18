@@ -1,0 +1,238 @@
+# =============================================================================
+# GitLab CI/CD Pipeline pour Amoona
+# =============================================================================
+# Ce pipeline construit et déploie les applications via ArgoCD
+#
+# Variables requises dans GitLab CI/CD Settings:
+#   - KUBE_CONFIG (base64 du kubeconfig pour le déploiement direct)
+#   - ARGOCD_SERVER (optionnel, URL du serveur ArgoCD)
+#   - ARGOCD_TOKEN (optionnel, token pour ArgoCD)
+# =============================================================================
+
+stages:
+  - validate
+  - build
+  - deploy
+  - notify
+
+variables:
+  # GitLab Container Registry
+  REGISTRY: registry.gitlab.com
+  API_IMAGE: $CI_REGISTRY_IMAGE/amoona-api
+  FRONT_IMAGE: $CI_REGISTRY_IMAGE/amoona-front
+
+  # Kubernetes
+  KUBE_NAMESPACE_DEV: amoona-dev
+  KUBE_NAMESPACE_PROD: amoona-prod
+
+  # Docker
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: "/certs"
+
+# =============================================================================
+# Templates
+# =============================================================================
+
+.docker_build_template: &docker_build
+  image: docker:24-dind
+  services:
+    - docker:24-dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+
+.kubectl_template: &kubectl
+  image: bitnami/kubectl:latest
+  before_script:
+    - mkdir -p ~/.kube
+    - echo "$KUBE_CONFIG" | base64 -d > ~/.kube/config
+    - chmod 600 ~/.kube/config
+
+# =============================================================================
+# Stage: Validate
+# =============================================================================
+
+validate:kustomize:
+  stage: validate
+  image: registry.k8s.io/kustomize/kustomize:v5.0.0
+  script:
+    - kustomize build k8s/overlays/dev-light --enable-helm > /dev/null
+    - echo "Kustomize validation passed"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "main"'
+
+validate:yaml:
+  stage: validate
+  image: python:3.11-slim
+  script:
+    - pip install yamllint
+    - yamllint -d relaxed k8s/
+  allow_failure: true
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+# =============================================================================
+# Stage: Build (pour les projets API et Frontend)
+# =============================================================================
+
+# Ces jobs sont utilisés dans les pipelines des projets amoona-api et amoona-front
+# Ils peuvent être inclus via includes ou triggers
+
+build:api:
+  <<: *docker_build
+  stage: build
+  script:
+    - |
+      if [ -f "Dockerfile" ]; then
+        docker build \
+          --cache-from $API_IMAGE:latest \
+          --tag $API_IMAGE:$CI_COMMIT_SHORT_SHA \
+          --tag $API_IMAGE:latest \
+          --build-arg BUILDKIT_INLINE_CACHE=1 \
+          .
+        docker push $API_IMAGE:$CI_COMMIT_SHORT_SHA
+        docker push $API_IMAGE:latest
+      else
+        echo "No Dockerfile found, skipping build"
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "main"'
+      changes:
+        - "**/*.java"
+        - "pom.xml"
+        - "Dockerfile"
+      when: on_success
+    - when: never
+
+build:front:
+  <<: *docker_build
+  stage: build
+  script:
+    - |
+      if [ -f "Dockerfile" ]; then
+        docker build \
+          --cache-from $FRONT_IMAGE:latest \
+          --tag $FRONT_IMAGE:$CI_COMMIT_SHORT_SHA \
+          --tag $FRONT_IMAGE:latest \
+          --build-arg BUILDKIT_INLINE_CACHE=1 \
+          .
+        docker push $FRONT_IMAGE:$CI_COMMIT_SHORT_SHA
+        docker push $FRONT_IMAGE:latest
+      else
+        echo "No Dockerfile found, skipping build"
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "main"'
+      changes:
+        - "src/**/*"
+        - "package*.json"
+        - "angular.json"
+        - "Dockerfile"
+      when: on_success
+    - when: never
+
+# =============================================================================
+# Stage: Deploy
+# =============================================================================
+
+# Mise à jour du tag d'image et commit automatique
+deploy:update-image-tag:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache git curl
+    - git config --global user.email "gitlab-ci@amoona.tech"
+    - git config --global user.name "GitLab CI"
+  script:
+    - |
+      # Déterminer l'environnement
+      if [ "$CI_COMMIT_BRANCH" == "main" ]; then
+        ENV="prod"
+        OVERLAY_PATH="k8s/overlays/prod"
+      else
+        ENV="dev"
+        OVERLAY_PATH="k8s/overlays/dev-light"
+      fi
+
+      # Mettre à jour le tag de l'image API
+      if [ -n "$API_NEW_TAG" ]; then
+        echo "Updating API image tag to $API_NEW_TAG"
+        sed -i "s/newTag: .*/newTag: \"$API_NEW_TAG\"/" $OVERLAY_PATH/apps/amoona-api/kustomization.yaml
+      fi
+
+      # Mettre à jour le tag de l'image Frontend
+      if [ -n "$FRONT_NEW_TAG" ]; then
+        echo "Updating Frontend image tag to $FRONT_NEW_TAG"
+        sed -i "s/newTag: .*/newTag: \"$FRONT_NEW_TAG\"/" $OVERLAY_PATH/apps/amoona-front/kustomization.yaml
+      fi
+
+      # Commit et push si des changements existent
+      if git diff --quiet; then
+        echo "No changes to commit"
+      else
+        git add .
+        git commit -m "chore(deploy): update image tags for $ENV [skip ci]"
+        git push https://oauth2:$CI_JOB_TOKEN@$CI_SERVER_HOST/$CI_PROJECT_PATH.git HEAD:$CI_COMMIT_BRANCH
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "main"'
+      when: manual
+    - when: never
+
+# Déploiement direct via kubectl (si ArgoCD n'est pas utilisé)
+deploy:dev-light:
+  <<: *kubectl
+  stage: deploy
+  script:
+    - kubectl apply -k k8s/overlays/dev-light
+    - kubectl rollout status deployment/amoona-api -n $KUBE_NAMESPACE_DEV --timeout=300s
+    - kubectl rollout status deployment/amoona-front -n $KUBE_NAMESPACE_DEV --timeout=300s
+  environment:
+    name: development
+    url: https://app.195.35.2.238.nip.io
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+      when: manual
+    - when: never
+
+# Synchronisation ArgoCD
+deploy:argocd-sync:
+  stage: deploy
+  image: argoproj/argocd:latest
+  script:
+    - |
+      if [ -n "$ARGOCD_SERVER" ] && [ -n "$ARGOCD_TOKEN" ]; then
+        argocd login $ARGOCD_SERVER --token $ARGOCD_TOKEN --grpc-web --insecure
+        argocd app sync amoona-infra-dev --grpc-web
+        argocd app sync amoona-api-dev --grpc-web
+        argocd app sync amoona-front-dev --grpc-web
+        argocd app wait amoona-api-dev --health --grpc-web
+        argocd app wait amoona-front-dev --health --grpc-web
+      else
+        echo "ArgoCD credentials not configured. ArgoCD will sync automatically."
+      fi
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev"'
+      when: manual
+    - when: never
+
+# =============================================================================
+# Stage: Notify
+# =============================================================================
+
+notify:success:
+  stage: notify
+  script:
+    - echo "Deployment successful!"
+    - echo "Environment URL - https://app.195.35.2.238.nip.io"
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "main"'
+      when: on_success
+
+notify:failure:
+  stage: notify
+  script:
+    - echo "Deployment failed! Check the logs for details."
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "dev" || $CI_COMMIT_BRANCH == "main"'
+      when: on_failure

@@ -1,0 +1,65 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# =============================================================================
+# Configuration optimisée pour VPS 4 CPU / 16 Go RAM
+# =============================================================================
+# - Sans ELK Stack (Elasticsearch, Logstash, Kibana)
+# - Sans SonarQube
+# - Sans Harbor (utilise GitLab Container Registry externe)
+# - Avec ArgoCD (GitOps)
+# - Ressources minimales
+# - Support DNS personnalisé + TLS/SSL
+# =============================================================================
+
+namespace: amoona-dev
+
+resources:
+  - namespace.yaml
+
+  # Configuration DNS
+  - dns-config.yaml
+
+  # Infrastructure essentielle
+  - ../../base/infra/postgres
+  - ../../base/infra/redis
+  - ../../base/infra/minio
+  # Harbor supprimé - utilise GitLab Container Registry (registry.gitlab.com)
+  # - ../../base/infra/harbor
+
+  # Monitoring léger
+  - ../../base/monitoring/prometheus
+  - ../../base/monitoring/grafana
+
+  # DevTools
+  - ../../base/devtools/sonarqube
+
+  # Applications
+  - apps/amoona-api
+  - apps/amoona-front
+
+  # Ingress (HTTP)
+  - ingress.yaml
+
+  # Services exposés en externe (PostgreSQL, Redis, MinIO)
+  - external-services.yaml
+
+  # Ingress TLS (HTTPS) avec Let's Encrypt
+  - ingress-tls.yaml
+  - cert-manager.yaml
+
+patches:
+  # Secrets
+  - path: secrets-patch.yaml
+  # Ressources optimisées pour VPS léger
+  - path: resource-patches.yaml
+
+labels:
+  - pairs:
+      environment: dev
+      config: light
+
+commonAnnotations:
+  managed-by: kustomize
+  environment: development-light
+  description: "Configuration optimisée pour VPS 4CPU/16Go RAM"

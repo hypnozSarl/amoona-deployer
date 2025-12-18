@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: amoona-front
+spec:
+  replicas: 1
+  template:
+    spec:
+      # Utiliser GitLab Container Registry
+      imagePullSecrets:
+        - name: gitlab-registry-secret
+      containers:
+        - name: amoona-front
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"
