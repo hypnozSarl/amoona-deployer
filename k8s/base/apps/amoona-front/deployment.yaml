@@ -31,7 +31,7 @@ spec:
         fsGroup: 101
       containers:
         - name: amoona-front
-          image: registry.gitlab.com/hypnozsarl/amoona-front:latest
+          image: registry.gitlab.com/mbsdev/amoona-front:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

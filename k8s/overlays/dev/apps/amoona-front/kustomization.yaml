@@ -18,5 +18,5 @@ commonLabels:
 
 images:
   # GitLab Container Registry
-  - name: registry.gitlab.com/hypnozsarl/amoona-front
+  - name: registry.gitlab.com/mbsdev/amoona-front
     newTag: "latest"
