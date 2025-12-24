@@ -39,6 +39,9 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+          envFrom:
+            - secretRef:
+                name: amoona-api-secrets
           env:
             - name: SPRING_PROFILES_ACTIVE
               valueFrom:
@@ -47,71 +50,6 @@ spec:
                   key: SPRING_PROFILES_ACTIVE
             - name: JAVA_OPTS
               value: "-XX:+UseZGC -XX:MaxRAMPercentage=75.0 -XX:+UseStringDeduplication"
-            # Database - Spring Boot properties override
-            - name: SPRING_DATASOURCE_URL
-              valueFrom:
-                secretKeyRef:
-                  name: amoona-api-secrets
-                  key: DB_URL
-            - name: SPRING_DATASOURCE_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: amoona-api-secrets
-                  key: DB_USER
-            - name: SPRING_DATASOURCE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: amoona-api-secrets
-                  key: DB_PASSWORD
-            # Redis - Spring Boot properties override
-            - name: SPRING_DATA_REDIS_HOST
-              valueFrom:
-                secretKeyRef:
-                  name: amoona-api-secrets
-                  key: REDIS_HOST
-            - name: SPRING_DATA_REDIS_PORT
-              valueFrom:
-                secretKeyRef:
-                  name: amoona-api-secrets
-                  key: REDIS_PORT
-            - name: SPRING_DATA_REDIS_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: amoona-api-secrets
-                  key: REDIS_PASSWORD
-            # MinIO
-            - name: MINIO_ENDPOINT
-              valueFrom:
-                secretKeyRef:
-                  name: amoona-api-secrets
-                  key: MINIO_ENDPOINT
-            - name: MINIO_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: amoona-api-secrets
-                  key: MINIO_ACCESS_KEY
-            - name: MINIO_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: amoona-api-secrets
-                  key: MINIO_SECRET_KEY
-            # JWT
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: amoona-api-secrets
-                  key: JWT_SECRET
-            # Logstash
-            - name: LOGGING_LOGSTASH_HOST
-              valueFrom:
-                secretKeyRef:
-                  name: amoona-api-secrets
-                  key: LOGSTASH_HOST
-            - name: LOGGING_LOGSTASH_PORT
-              valueFrom:
-                secretKeyRef:
-                  name: amoona-api-secrets
-                  key: LOGSTASH_PORT
           resources:
             requests:
               memory: "512Mi"

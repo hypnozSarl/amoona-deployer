@@ -18,6 +18,9 @@ spec:
             limits:
               cpu: "1000m"
               memory: "1Gi"
+          envFrom:
+            - secretRef:
+                name: amoona-api-secrets
           env:
             - name: JAVA_OPTS
               value: "-Xms256m -Xmx512m"
