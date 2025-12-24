@@ -22,7 +22,7 @@ labels:
 images:
   # GitLab Container Registry
   # Format: registry.gitlab.com/GROUP/PROJECT/IMAGE:TAG
-  - name: registry.gitlab.com/hypnozsarl/amoona-api
+  - name: registry.gitlab.com/mbsdev/amoona-api
     newTag: "latest"
 
 configMapGenerator:

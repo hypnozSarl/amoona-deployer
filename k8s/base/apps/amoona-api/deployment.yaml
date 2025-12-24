@@ -33,7 +33,7 @@ spec:
         - name: gitlab-registry-secret
       containers:
         - name: amoona-api
-          image: registry.gitlab.com/hypnozsarl/amoona-api:latest
+          image: registry.gitlab.com/mbsdev/amoona-api:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
