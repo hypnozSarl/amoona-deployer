@@ -20,7 +20,7 @@ spec:
               memory: "1Gi"
           env:
             - name: JAVA_OPTS
-              value: "-Xms256m -Xmx512m -XX:+UseG1GC -XX:MaxGCPauseMillis=100"
+              value: "-Xms256m -Xmx512m"
             # Configuration sans ELK
             - name: LOGGING_LOGSTASH_ENABLED
               value: "false"
