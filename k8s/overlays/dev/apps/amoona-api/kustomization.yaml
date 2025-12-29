@@ -24,7 +24,7 @@ labels:
 images:
   # GitLab Container Registry
   - name: registry.gitlab.com/mbsdev/amoona-api
-    newTag: "3d38273a"
+    newTag: "ecf4b893"
 
 configMapGenerator:
   - name: amoona-api-config
