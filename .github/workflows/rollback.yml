@@ -84,7 +84,7 @@ jobs:
       name: ${{ inputs.environment }}
     steps:
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
         with:
           version: 'v1.29.0'
 
@@ -175,7 +175,7 @@ jobs:
       name: ${{ inputs.environment }}
     steps:
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
         with:
           version: 'v1.29.0'
 
@@ -275,7 +275,7 @@ jobs:
           kustomize-version: ${{ env.KUSTOMIZE_VERSION }}
 
       - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
+        uses: azure/setup-kubectl@v4
         with:
           version: 'v1.29.0'
 
